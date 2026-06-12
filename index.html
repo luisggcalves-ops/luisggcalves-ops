@@ -3,19 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>LiftLog — Workout Tracker</title>
+  <title>LiftLog &#8212; Workout Tracker</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div id="app">
+
+  <!-- HEADER -->
   <header>
     <div class="header-inner">
       <div class="logo">
-        <span class="logo-icon">🏋️</span>
+        <span class="logo-icon">&#127947;</span>
         <span>LiftLog</span>
       </div>
       <nav>
@@ -28,118 +29,147 @@
   </header>
 
   <main>
-    <!-- ── LOG ── -->
+
+    <!-- LOG SECTION -->
     <section id="log-section" class="section active">
       <div class="section-header">
         <h2>Log Workout</h2>
+        <span id="log-date" style="font-size:0.82rem;color:var(--text-muted)"></span>
       </div>
+
       <div class="card">
-        <form id="log-form">
+        <form id="log-form" autocomplete="off">
           <div class="form-grid">
+
             <div class="form-group full-width">
               <label for="exercise-input">Exercise</label>
               <div class="autocomplete-wrapper">
-                <input id="exercise-input" type="text" placeholder="e.g. Bench Press" autocomplete="off" required />
+                <input id="exercise-input" type="text" placeholder="e.g. Bench Press" required autocomplete="off" />
                 <div id="autocomplete-list" class="autocomplete-list" style="display:none"></div>
               </div>
             </div>
-            <div class="form-group">
-              <label for="date-input">Date</label>
-              <input id="date-input" type="date" required />
-            </div>
-            <div class="form-group">
-              <label for="notes-input">Notes (optional)</label>
-              <input id="notes-input" type="text" placeholder="RPE, how it felt…" />
-            </div>
-            <div class="sets-container">
-              <label style="display:block;margin-bottom:0.5rem">Sets</label>
+
+            <div class="form-group full-width sets-container">
+              <label>Sets</label>
               <div class="sets-list" id="sets-list"></div>
               <button type="button" class="add-set-btn" id="add-set-btn">+ Add Set</button>
             </div>
+
+            <div class="form-group full-width">
+              <label for="notes-input">
+                Notes
+                <span style="font-weight:400;text-transform:none;color:var(--text-muted)">(optional)</span>
+              </label>
+              <input id="notes-input" type="text" placeholder="e.g. Felt strong today" />
+            </div>
+
             <div class="form-actions">
               <button type="button" class="btn btn-secondary" id="clear-form-btn">Clear</button>
-              <button type="submit" class="btn btn-primary">Save Entry</button>
+              <button type="submit" class="btn btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+                     stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Save Workout
+              </button>
             </div>
+
           </div>
         </form>
       </div>
+
+      <!-- Today's entries list -->
+      <div id="today-workouts">
+        <h3 style="margin-bottom:0.75rem;color:var(--text-secondary);font-size:0.9rem;
+                   text-transform:uppercase;letter-spacing:0.05em;">Today's Entries</h3>
+        <div id="today-list"></div>
+      </div>
     </section>
 
-    <!-- ── HISTORY ── -->
+    <!-- HISTORY SECTION -->
     <section id="history-section" class="section">
       <div class="section-header">
         <h2>History</h2>
-        <div style="display:flex;gap:0.5rem">
-          <button class="btn btn-secondary btn-sm" id="export-btn">Export JSON</button>
-          <button class="btn btn-secondary btn-sm" id="share-btn">Share Profile</button>
-        </div>
+        <button class="btn btn-danger btn-sm" id="clear-all-btn">Clear All</button>
       </div>
       <div class="filter-bar">
-        <input id="history-search" type="text" placeholder="Search exercise…" />
-        <input id="history-date-from" type="date" title="From date" />
-        <input id="history-date-to" type="date" title="To date" />
+        <input id="history-search" type="text" placeholder="Search exercise..." />
+        <input id="history-date" type="date" />
       </div>
       <div id="history-list"></div>
     </section>
 
-    <!-- ── PROGRESS ── -->
+    <!-- PROGRESS SECTION -->
     <section id="progress-section" class="section">
       <div class="section-header">
         <h2>Progress</h2>
       </div>
+
       <div class="progress-controls">
-        <select id="progress-exercise-select">
-          <option value="">— Select Exercise —</option>
+        <select id="progress-exercise">
+          <option value="">-- Select exercise --</option>
         </select>
         <div class="metric-tabs">
-          <button class="metric-tab active" data-metric="weight">Max Weight</button>
-          <button class="metric-tab" data-metric="volume">Total Volume</button>
-          <button class="metric-tab" data-metric="reps">Max Reps</button>
+          <button class="metric-tab active" data-metric="weight">Weight</button>
+          <button class="metric-tab" data-metric="reps">Reps</button>
+          <button class="metric-tab" data-metric="volume">Volume</button>
+          <button class="metric-tab" data-metric="1rm">Est. 1RM</button>
         </div>
       </div>
-      <div id="pr-banner" class="pr-banner"></div>
+
+      <!-- PR banner for selected exercise -->
+      <div id="exercise-prs" class="pr-banner" style="display:none"></div>
+
+      <!-- Chart area -->
       <div class="chart-wrapper">
-        <canvas id="progress-chart" height="260"></canvas>
-        <div id="chart-placeholder" class="chart-placeholder">Select an exercise to see your progress chart.</div>
+        <div id="chart-placeholder" class="chart-placeholder">
+          Select an exercise above to view your progress chart.
+        </div>
+        <canvas id="progress-chart" style="display:none;max-height:320px;"></canvas>
+      </div>
+
+      <!-- Best sets table -->
+      <div id="best-sets-section" style="display:none">
+        <h3 style="margin-bottom:0.75rem">Best Sets</h3>
+        <div class="card">
+          <table class="sets-table">
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Set</th>
+                <th>Reps</th>
+                <th>Weight</th>
+                <th>Volume</th>
+                <th>Est. 1RM</th>
+              </tr>
+            </thead>
+            <tbody id="best-sets-body"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
-    <!-- ── STATS ── -->
+    <!-- STATS SECTION -->
     <section id="stats-section" class="section">
       <div class="section-header">
-        <h2>Overall Stats</h2>
-        <button class="btn btn-secondary btn-sm" id="share-stats-btn">Share Stats</button>
+        <h2>Stats</h2>
       </div>
       <div class="stats-grid" id="stats-grid"></div>
-      <div class="section-header" style="margin-top:1rem">
-        <h3>Personal Records</h3>
-      </div>
-      <div id="all-prs"></div>
+      <h3 style="margin-bottom:0.75rem">All-time PRs</h3>
+      <div id="all-prs-list"></div>
     </section>
+
   </main>
 </div>
 
-<!-- Share Modal -->
-<div id="share-modal-overlay" class="modal-overlay" style="display:none">
-  <div class="modal" style="max-width:500px">
-    <h3>Share Your Stats</h3>
-    <p>Copy this link to share your PRs and stats with friends. They can view (but not edit) your data.</p>
-    <div class="form-group" style="margin-bottom:1rem">
-      <label>Share Link</label>
-      <input id="share-link-input" type="text" readonly style="font-size:0.8rem;cursor:text" />
-    </div>
-    <div class="modal-actions">
-      <button class="btn btn-secondary" id="share-modal-close">Close</button>
-      <button class="btn btn-primary" id="copy-link-btn">Copy Link</button>
-    </div>
-  </div>
-</div>
+<!-- Toast container -->
+<div id="toast-container"></div>
 
-<!-- Confirm Modal -->
+<!-- Confirm modal -->
 <div id="modal-overlay" class="modal-overlay" style="display:none">
   <div class="modal">
     <h3 id="modal-title">Confirm</h3>
-    <p id="modal-body"></p>
+    <p id="modal-body">Are you sure?</p>
     <div class="modal-actions">
       <button class="btn btn-secondary" id="modal-cancel">Cancel</button>
       <button class="btn btn-danger" id="modal-confirm">Delete</button>
@@ -147,14 +177,7 @@
   </div>
 </div>
 
-<!-- Shared View Banner -->
-<div id="shared-banner" style="display:none;background:#1a1d27;border-bottom:1px solid #2e3352;padding:0.6rem 1.25rem;text-align:center;font-size:0.85rem;color:#9ba3c7">
-  👀 You're viewing <strong id="shared-owner-name">someone's</strong> shared workout stats — read only.
-</div>
-
-<!-- Toast container -->
-<div id="toast-container"></div>
-
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

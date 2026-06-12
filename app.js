@@ -1,39 +1,83 @@
-// ── Storage ──────────────────────────────────────────────────────────────────
-const STORAGE_KEY = 'liftlog_entries';
+/* =========================================================
+   LiftLog  |  app.js
+   Single-file vanilla JS workout tracker.
+   Data persisted in localStorage as JSON array.
+   ========================================================= */
 
-function loadEntries() {
+'use strict';
+
+/* ── Storage ──────────────────────────────────────────────── */
+const STORAGE_KEY = 'liftlog_workouts';
+
+function load() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
   catch { return []; }
 }
 
-function saveEntries(entries) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+function persist(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
 }
 
-// entry shape: { id, date, exercise, sets:[{reps,weight,unit}], notes }
+/* workouts: Array<{id, date, exercise, sets:[{reps,weight}], notes}> */
+let workouts = load();
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2); }
-
-function fmtDate(iso) {
-  const [y, m, d] = iso.split('-');
-  return new Date(+y, +m - 1, +d).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+/* ── Utilities ────────────────────────────────────────────── */
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 function todayISO() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-function maxWeight(sets) { return Math.max(...sets.map(s => +s.weight || 0)); }
-function totalVolume(sets) { return sets.reduce((a, s) => a + (+s.reps||0) * (+s.weight||0), 0); }
-function maxReps(sets) { return Math.max(...sets.map(s => +s.reps || 0)); }
-
-function allExercises(entries) {
-  return [...new Set(entries.map(e => e.exercise))].sort((a, b) => a.localeCompare(b));
+function formatDateLong(iso) {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString(undefined, {
+    weekday: 'short', month: 'short', day: 'numeric', year: 'numeric',
+  });
 }
 
-// ── Toast ─────────────────────────────────────────────────────────────────────
+function relDate(iso) {
+  const today = todayISO();
+  if (iso === today) return 'Today';
+  const yest = new Date();
+  yest.setDate(yest.getDate() - 1);
+  const yesterdayISO = yest.toISOString().slice(0, 10);
+  if (iso === yesterdayISO) return 'Yesterday';
+  return formatDateLong(iso);
+}
+
+/** Epley estimated 1RM */
+function e1rm(weight, reps) {
+  const w = Number(weight) || 0;
+  const r = Number(reps) || 0;
+  if (w <= 0 || r <= 0) return 0;
+  return r === 1 ? w : Math.round(w * (1 + r / 30));
+}
+
+function setMaxWeight(sets) { return Math.max(0, ...sets.map(s => Number(s.weight) || 0)); }
+function setMaxReps(sets)   { return Math.max(0, ...sets.map(s => Number(s.reps)   || 0)); }
+function setVolume(sets)    { return sets.reduce((a, s) => a + (Number(s.reps) || 0) * (Number(s.weight) || 0), 0); }
+function setBest1rm(sets)   { return Math.max(0, ...sets.map(s => e1rm(s.weight, s.reps))); }
+
+function allExerciseNames() {
+  return [...new Set(workouts.map(w => w.exercise))].sort((a, b) => a.localeCompare(b));
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function fmtVol(v) {
+  return v >= 1000 ? (v / 1000).toFixed(1) + 'k' : String(Math.round(v));
+}
+
+/* ── Toast ────────────────────────────────────────────────── */
 function toast(msg, type = 'info') {
   const el = document.createElement('div');
   el.className = `toast ${type}`;
@@ -42,467 +86,520 @@ function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3200);
 }
 
-// ── Confirm Modal ─────────────────────────────────────────────────────────────
-function confirm(title, body) {
+/* ── Confirm Modal ────────────────────────────────────────── */
+function openConfirm(title, body) {
   return new Promise(resolve => {
     const overlay = document.getElementById('modal-overlay');
     document.getElementById('modal-title').textContent = title;
-    document.getElementById('modal-body').textContent = body;
+    document.getElementById('modal-body').textContent  = body;
     overlay.style.display = 'flex';
-    const cleanup = (val) => { overlay.style.display = 'none'; resolve(val); };
-    document.getElementById('modal-confirm').onclick = () => cleanup(true);
-    document.getElementById('modal-cancel').onclick  = () => cleanup(false);
-    overlay.onclick = e => { if (e.target === overlay) cleanup(false); };
+
+    const done = val => {
+      overlay.style.display = 'none';
+      resolve(val);
+    };
+
+    document.getElementById('modal-confirm').onclick = () => done(true);
+    document.getElementById('modal-cancel').onclick  = () => done(false);
+    overlay.onclick = e => { if (e.target === overlay) done(false); };
   });
 }
 
-// ── Nav ───────────────────────────────────────────────────────────────────────
+/* ── Navigation ───────────────────────────────────────────── */
+let currentSection = 'log';
+
 function showSection(name) {
+  currentSection = name;
   document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.section === name));
+  document.querySelectorAll('.nav-btn').forEach(b =>
+    b.classList.toggle('active', b.dataset.section === name)
+  );
   document.getElementById(`${name}-section`).classList.add('active');
+
   if (name === 'history')  renderHistory();
-  if (name === 'progress') renderProgressSection();
+  if (name === 'progress') renderProgress();
   if (name === 'stats')    renderStats();
+  if (name === 'log')      renderTodayList();
 }
 
-document.querySelectorAll('.nav-btn').forEach(btn => {
-  btn.addEventListener('click', () => showSection(btn.dataset.section));
-});
+document.querySelectorAll('.nav-btn').forEach(btn =>
+  btn.addEventListener('click', () => showSection(btn.dataset.section))
+);
 
-// ── Log Form ──────────────────────────────────────────────────────────────────
-const COMMON_EXERCISES = [
-  'Back Squat','Bench Press','Deadlift','Overhead Press','Romanian Deadlift',
-  'Pull-Up','Barbell Row','Incline Bench Press','Front Squat','Hip Thrust',
-  'Dumbbell Curl','Tricep Dip','Lat Pulldown','Cable Row','Face Pull',
-  'Leg Press','Leg Curl','Leg Extension','Calf Raise','Chest Fly',
-  'Arnold Press','Lateral Raise','Rear Delt Fly','Shrug','Good Morning',
-  'Power Clean','Snatch','Push Press','Sumo Deadlift','Bulgarian Split Squat',
-];
+/* ── Date display ─────────────────────────────────────────── */
+document.getElementById('log-date').textContent = formatDateLong(todayISO());
 
-let setCount = 0;
+/* ── Sets Builder ─────────────────────────────────────────── */
+let sets = [{ reps: '', weight: '' }];
 
-function addSetRow(defaultReps = '', defaultWeight = '', defaultUnit = 'kg') {
-  setCount++;
+function renderSets() {
   const list = document.getElementById('sets-list');
-  const row = document.createElement('div');
-  row.className = 'set-row';
-  row.dataset.setId = setCount;
-  row.innerHTML = `
-    <span class="set-num">${list.children.length + 1}</span>
-    <div class="set-field">
-      <span class="set-label">Reps</span>
-      <input type="number" min="1" step="1" placeholder="0" value="${defaultReps}" class="set-reps" />
-    </div>
-    <div class="set-field">
-      <span class="set-label">Weight</span>
-      <input type="number" min="0" step="0.5" placeholder="0" value="${defaultWeight}" class="set-weight" />
-    </div>
-    <div class="set-field">
-      <span class="set-label">Unit</span>
-      <select class="set-unit">
-        <option value="kg" ${defaultUnit==='kg'?'selected':''}>kg</option>
-        <option value="lb" ${defaultUnit==='lb'?'selected':''}>lb</option>
-        <option value="bw" ${defaultUnit==='bw'?'selected':''}>BW</option>
-      </select>
-    </div>
-    <button type="button" class="remove-set-btn" title="Remove set">×</button>
-  `;
-  row.querySelector('.remove-set-btn').addEventListener('click', () => {
-    row.remove();
-    renumberSets();
+  list.innerHTML = '';
+  sets.forEach((set, i) => {
+    const ormVal = (set.reps && set.weight)
+      ? e1rm(set.weight, set.reps) + ' kg' : '&#8212;';
+    const row = document.createElement('div');
+    row.className = 'set-row';
+    row.innerHTML = `
+      <span class="set-num">${i + 1}</span>
+      <div class="set-field">
+        <span class="set-label">Reps</span>
+        <input type="number" min="1" step="1" placeholder="&#8212;" value="${escHtml(set.reps)}"
+               data-idx="${i}" data-field="reps" />
+      </div>
+      <div class="set-field">
+        <span class="set-label">Weight (kg)</span>
+        <input type="number" min="0" step="0.5" placeholder="&#8212;" value="${escHtml(set.weight)}"
+               data-idx="${i}" data-field="weight" />
+      </div>
+      <div class="set-field">
+        <span class="set-label">Est. 1RM</span>
+        <input type="text" readonly tabindex="-1"
+               style="color:var(--text-muted)" value="${ormVal}" />
+      </div>
+      <button type="button" class="remove-set-btn" data-idx="${i}" title="Remove set">&#215;</button>
+    `;
+    list.appendChild(row);
   });
-  list.appendChild(row);
 }
 
-function renumberSets() {
-  document.querySelectorAll('#sets-list .set-num').forEach((el, i) => { el.textContent = i + 1; });
-}
-
-function readSets() {
-  return [...document.querySelectorAll('#sets-list .set-row')].map(row => ({
-    reps:   row.querySelector('.set-reps').value,
-    weight: row.querySelector('.set-weight').value,
-    unit:   row.querySelector('.set-unit').value,
-  })).filter(s => s.reps || s.weight);
-}
-
-document.getElementById('add-set-btn').addEventListener('click', () => {
-  const rows = document.querySelectorAll('#sets-list .set-row');
-  if (rows.length > 0) {
-    const last = rows[rows.length - 1];
-    addSetRow(last.querySelector('.set-reps').value, last.querySelector('.set-weight').value, last.querySelector('.set-unit').value);
-  } else {
-    addSetRow();
+document.getElementById('sets-list').addEventListener('input', e => {
+  const { idx, field } = e.target.dataset;
+  if (field === 'reps' || field === 'weight') {
+    const i = Number(idx);
+    sets[i][field] = e.target.value;
+    // Update 1RM read-only field in same row
+    const row = e.target.closest('.set-row');
+    const ormInput = row.querySelector('input[readonly]');
+    if (ormInput) {
+      const w = Number(sets[i].weight), r = Number(sets[i].reps);
+      ormInput.value = (w > 0 && r > 0) ? e1rm(w, r) + ' kg' : '—';
+    }
   }
 });
 
-document.getElementById('clear-form-btn').addEventListener('click', resetForm);
-
-function resetForm() {
-  document.getElementById('log-form').reset();
-  document.getElementById('date-input').value = todayISO();
-  document.getElementById('sets-list').innerHTML = '';
-  setCount = 0;
-  addSetRow();
-}
-
-// Autocomplete
-const exerciseInput = document.getElementById('exercise-input');
-const acList = document.getElementById('autocomplete-list');
-let acHighlight = -1;
-
-exerciseInput.addEventListener('input', () => {
-  const q = exerciseInput.value.trim().toLowerCase();
-  acHighlight = -1;
-  if (!q) { acList.style.display = 'none'; return; }
-  const entries = loadEntries();
-  const used = allExercises(entries);
-  const all = [...new Set([...used, ...COMMON_EXERCISES])].sort();
-  const matches = all.filter(e => e.toLowerCase().includes(q));
-  if (!matches.length) { acList.style.display = 'none'; return; }
-  acList.innerHTML = matches.slice(0, 8).map(m =>
-    `<div class="autocomplete-item">${m}</div>`
-  ).join('');
-  acList.style.display = 'block';
-  acList.querySelectorAll('.autocomplete-item').forEach(item => {
-    item.addEventListener('mousedown', e => {
-      e.preventDefault();
-      exerciseInput.value = item.textContent;
-      acList.style.display = 'none';
-    });
-  });
+document.getElementById('sets-list').addEventListener('click', e => {
+  const btn = e.target.closest('.remove-set-btn');
+  if (!btn) return;
+  const i = Number(btn.dataset.idx);
+  if (sets.length > 1) { sets.splice(i, 1); renderSets(); }
 });
 
+document.getElementById('add-set-btn').addEventListener('click', () => {
+  const last = sets[sets.length - 1];
+  sets.push({ reps: last.reps, weight: last.weight });
+  renderSets();
+  // Focus new reps input
+  const rows = document.querySelectorAll('#sets-list .set-row');
+  const newRow = rows[rows.length - 1];
+  if (newRow) newRow.querySelector('input[type=number]').focus();
+});
+
+renderSets();
+
+/* ── Exercise Autocomplete ────────────────────────────────── */
+const PRESET_EXERCISES = [
+  'Back Squat', 'Bench Press', 'Deadlift', 'Overhead Press', 'Romanian Deadlift',
+  'Incline Bench Press', 'Decline Bench Press', 'Front Squat', 'Sumo Deadlift',
+  'Pull-up', 'Chin-up', 'Lat Pulldown', 'Barbell Row', 'Dumbbell Row', 'Cable Row',
+  'Hip Thrust', 'Glute Bridge', 'Bulgarian Split Squat', 'Hack Squat', 'Leg Press',
+  'Leg Curl', 'Leg Extension', 'Calf Raise',
+  'Dumbbell Curl', 'Barbell Curl', 'Hammer Curl',
+  'Tricep Pushdown', 'Skull Crusher', 'Dip', 'Close-Grip Bench Press',
+  'Lateral Raise', 'Face Pull', 'Shrug', 'Arnold Press',
+  'Plank', 'Ab Wheel Rollout', 'Crunch',
+];
+
+const exerciseInput  = document.getElementById('exercise-input');
+const autocompleteEl = document.getElementById('autocomplete-list');
+let acHighlight = -1;
+
+function acSuggestions(q) {
+  if (!q) return [];
+  const lq = q.toLowerCase();
+  const combined = [...new Set([...allExerciseNames(), ...PRESET_EXERCISES])];
+  return combined.filter(n => n.toLowerCase().includes(lq)).slice(0, 8);
+}
+
+function renderAC(items) {
+  if (!items.length) { autocompleteEl.style.display = 'none'; return; }
+  autocompleteEl.innerHTML = items.map(item =>
+    `<div class="autocomplete-item" data-val="${escHtml(item)}">${escHtml(item)}</div>`
+  ).join('');
+  acHighlight = -1;
+  autocompleteEl.style.display = 'block';
+}
+
+exerciseInput.addEventListener('input', () =>
+  renderAC(acSuggestions(exerciseInput.value))
+);
+
 exerciseInput.addEventListener('keydown', e => {
-  const items = [...acList.querySelectorAll('.autocomplete-item')];
+  const items = autocompleteEl.querySelectorAll('.autocomplete-item');
   if (!items.length) return;
-  if (e.key === 'ArrowDown') { e.preventDefault(); acHighlight = Math.min(acHighlight+1, items.length-1); }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); acHighlight = Math.max(acHighlight-1, -1); }
-  else if (e.key === 'Enter' && acHighlight >= 0) { e.preventDefault(); exerciseInput.value = items[acHighlight].textContent; acList.style.display = 'none'; return; }
-  else if (e.key === 'Escape') { acList.style.display = 'none'; return; }
-  items.forEach((it, i) => it.classList.toggle('highlighted', i === acHighlight));
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    acHighlight = Math.min(acHighlight + 1, items.length - 1);
+    items.forEach((el, i) => el.classList.toggle('highlighted', i === acHighlight));
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    acHighlight = Math.max(acHighlight - 1, 0);
+    items.forEach((el, i) => el.classList.toggle('highlighted', i === acHighlight));
+  } else if (e.key === 'Enter' && acHighlight >= 0) {
+    e.preventDefault();
+    exerciseInput.value = items[acHighlight].dataset.val;
+    autocompleteEl.style.display = 'none';
+  } else if (e.key === 'Escape') {
+    autocompleteEl.style.display = 'none';
+  }
+});
+
+autocompleteEl.addEventListener('mousedown', e => {
+  const item = e.target.closest('.autocomplete-item');
+  if (!item) return;
+  e.preventDefault();
+  exerciseInput.value = item.dataset.val;
+  autocompleteEl.style.display = 'none';
+  exerciseInput.focus();
 });
 
 document.addEventListener('click', e => {
-  if (!e.target.closest('.autocomplete-wrapper')) acList.style.display = 'none';
+  if (!exerciseInput.contains(e.target) && !autocompleteEl.contains(e.target)) {
+    autocompleteEl.style.display = 'none';
+  }
 });
 
-// Submit
+/* ── Log Form Submit ──────────────────────────────────────── */
 document.getElementById('log-form').addEventListener('submit', e => {
   e.preventDefault();
+
   const exercise = exerciseInput.value.trim();
-  const date = document.getElementById('date-input').value;
-  const notes = document.getElementById('notes-input').value.trim();
-  const sets = readSets();
   if (!exercise) { toast('Enter an exercise name.', 'error'); return; }
-  if (!date) { toast('Pick a date.', 'error'); return; }
-  if (!sets.length) { toast('Add at least one set.', 'error'); return; }
-  const entry = { id: genId(), date, exercise, sets, notes };
-  const entries = loadEntries();
-  entries.push(entry);
-  saveEntries(entries);
-  toast(`${exercise} saved!`, 'success');
-  resetForm();
+
+  const validSets = sets
+    .filter(s => s.reps || s.weight)
+    .map(s => ({ reps: Number(s.reps) || 0, weight: Number(s.weight) || 0 }));
+
+  if (!validSets.length) { toast('Add at least one set with reps or weight.', 'error'); return; }
+
+  const entry = {
+    id:       uid(),
+    date:     todayISO(),
+    exercise,
+    sets:     validSets,
+    notes:    document.getElementById('notes-input').value.trim(),
+  };
+
+  workouts.unshift(entry);
+  persist(workouts);
+
+  const isNewPR = checkIsPR(entry);
+  toast(
+    isNewPR ? `New PR on ${exercise}! Entry saved.` : `Entry saved — ${exercise}`,
+    'success'
+  );
+
+  clearForm();
+  renderTodayList();
 });
 
-// ── History ───────────────────────────────────────────────────────────────────
-function renderHistory() {
-  const entries = loadEntries();
-  const search = document.getElementById('history-search').value.trim().toLowerCase();
-  const from   = document.getElementById('history-date-from').value;
-  const to     = document.getElementById('history-date-to').value;
+function clearForm() {
+  exerciseInput.value = '';
+  document.getElementById('notes-input').value = '';
+  autocompleteEl.style.display = 'none';
+  sets = [{ reps: '', weight: '' }];
+  renderSets();
+}
 
-  let filtered = entries.filter(e => {
-    if (search && !e.exercise.toLowerCase().includes(search)) return false;
-    if (from && e.date < from) return false;
-    if (to   && e.date > to)   return false;
-    return true;
-  });
+document.getElementById('clear-form-btn').addEventListener('click', clearForm);
 
-  filtered.sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
+/** True if this entry's max weight beats all previous entries for the same exercise */
+function checkIsPR(entry) {
+  const prev = workouts.filter(w => w.exercise === entry.exercise && w.id !== entry.id);
+  if (!prev.length) return false;
+  const prevBest = Math.max(0, ...prev.map(w => setMaxWeight(w.sets)));
+  return setMaxWeight(entry.sets) > prevBest;
+}
 
-  const container = document.getElementById('history-list');
-  if (!filtered.length) {
-    container.innerHTML = `<div class="empty-state"><span class="empty-icon">📭</span><p>No entries yet. Log your first workout!</p></div>`;
+/** True if this entry currently holds the max weight record for its exercise */
+function isCurrentPR(entry) {
+  const all = workouts.filter(w => w.exercise === entry.exercise);
+  if (all.length <= 1) return true;
+  const best = Math.max(...all.map(w => setMaxWeight(w.sets)));
+  return setMaxWeight(entry.sets) >= best;
+}
+
+/* ── Today List ───────────────────────────────────────────── */
+function renderTodayList() {
+  const container = document.getElementById('today-list');
+  const today = workouts.filter(w => w.date === todayISO());
+
+  if (!today.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">&#128170;</span>
+        <p>No workouts logged today yet. Fill the form above to start!</p>
+      </div>`;
     return;
   }
 
-  // Group by date
-  const grouped = {};
-  filtered.forEach(e => { (grouped[e.date] = grouped[e.date] || []).push(e); });
+  container.innerHTML = today.map(w => buildWorkoutCard(w)).join('');
+  attachCardActions(container);
+}
 
-  // Compute PRs across ALL entries for badge display
-  const prMap = computePRMap(entries);
+/* ── Workout Card ─────────────────────────────────────────── */
+function buildWorkoutCard(entry) {
+  const vol  = setVolume(entry.sets);
+  const rm   = setBest1rm(entry.sets);
+  const isPR = isCurrentPR(entry);
 
-  container.innerHTML = Object.keys(grouped).sort((a,b) => b.localeCompare(a)).map(date => `
-    <div class="workout-day">
-      <div class="workout-day-header">
-        <span class="day-label">${fmtDate(date)}</span>
-        <div class="day-divider"></div>
-      </div>
-      ${grouped[date].map(entry => renderEntryCard(entry, prMap)).join('')}
-    </div>
+  const rows = entry.sets.map((s, i) => `
+    <tr>
+      <td>Set ${i + 1}</td>
+      <td>${s.reps || '&#8212;'}</td>
+      <td>${s.weight ? s.weight + ' kg' : '&#8212;'}</td>
+      <td>${(s.reps && s.weight) ? (s.reps * s.weight).toFixed(0) + ' kg' : '&#8212;'}</td>
+    </tr>
   `).join('');
 
-  container.querySelectorAll('.delete-entry-btn').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const ok = await confirm('Delete Entry', `Delete "${btn.dataset.exercise}" on ${fmtDate(btn.dataset.date)}?`);
-      if (!ok) return;
-      const all = loadEntries().filter(e => e.id !== btn.dataset.id);
-      saveEntries(all);
-      toast('Entry deleted.', 'info');
-      renderHistory();
-    });
-  });
-}
-
-function computePRMap(entries) {
-  // prMap[exercise] = { maxWeight, maxReps, maxVolume }
-  const map = {};
-  entries.forEach(e => {
-    if (!map[e.exercise]) map[e.exercise] = { weight: 0, reps: 0, volume: 0 };
-    const w = maxWeight(e.sets), r = maxReps(e.sets), v = totalVolume(e.sets);
-    if (w > map[e.exercise].weight) map[e.exercise].weight = w;
-    if (r > map[e.exercise].reps)   map[e.exercise].reps   = r;
-    if (v > map[e.exercise].volume) map[e.exercise].volume = v;
-  });
-  return map;
-}
-
-function renderEntryCard(entry, prMap) {
-  const pr = prMap[entry.exercise] || {};
-  const mw = maxWeight(entry.sets);
-  const mr = maxReps(entry.sets);
-  const vol = totalVolume(entry.sets);
-  const isPRWeight = mw > 0 && mw >= pr.weight;
-  const isPRVol    = vol > 0 && vol >= pr.volume;
-  const unit = entry.sets[0]?.unit || 'kg';
-
-  const setsHTML = entry.sets.map((s, i) => {
-    const isSetPR = (+s.weight||0) > 0 && (+s.weight||0) >= pr.weight;
-    return `<tr class="${isSetPR ? 'is-pr' : ''}">
-      <td>Set ${i+1}</td>
-      <td>${s.reps || '—'} reps</td>
-      <td>${s.weight ? s.weight + ' ' + s.unit : '—'}</td>
-      <td>${s.weight && s.reps ? (s.reps * s.weight).toFixed(1) + ' ' + s.unit : '—'}</td>
-    </tr>`;
-  }).join('');
-
   return `
-    <div class="workout-card">
+    <div class="workout-card" data-id="${entry.id}">
       <div class="workout-card-header">
-        <span class="exercise-name">${entry.exercise}</span>
+        <div>
+          <div class="exercise-name">${escHtml(entry.exercise)}</div>
+          ${entry.notes ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:0.15rem">${escHtml(entry.notes)}</div>` : ''}
+        </div>
         <div class="exercise-meta">
-          ${isPRWeight ? '<span class="badge badge-pr">🏆 PR</span>' : ''}
-          ${vol > 0 ? `<span class="badge badge-volume">${vol.toLocaleString()} ${unit} vol</span>` : ''}
+          ${isPR ? '<span class="badge badge-pr">&#127942; PR</span>' : ''}
+          ${vol > 0 ? `<span class="badge badge-volume">${fmtVol(vol)} kg</span>` : ''}
+          ${rm  > 0 ? `<span style="font-size:0.75rem;color:var(--text-muted)">1RM ~${rm} kg</span>` : ''}
         </div>
       </div>
       <div class="workout-sets">
         <table class="sets-table">
-          <thead><tr><th>#</th><th>Reps</th><th>Weight</th><th>Volume</th></tr></thead>
-          <tbody>${setsHTML}</tbody>
+          <thead><tr><th>Set</th><th>Reps</th><th>Weight</th><th>Volume</th></tr></thead>
+          <tbody>${rows}</tbody>
         </table>
-        ${entry.notes ? `<p style="margin-top:0.6rem;font-size:0.82rem;color:var(--text-muted)">📝 ${entry.notes}</p>` : ''}
       </div>
       <div class="workout-card-actions">
-        <button class="btn btn-danger btn-sm delete-entry-btn"
-          data-id="${entry.id}" data-exercise="${entry.exercise}" data-date="${entry.date}">
-          Delete
-        </button>
+        <button class="btn btn-secondary btn-sm" data-action="duplicate" data-id="${entry.id}">Duplicate to Today</button>
+        <button class="btn btn-danger btn-sm" data-action="delete" data-id="${entry.id}">Delete</button>
       </div>
     </div>
   `;
 }
 
-['history-search','history-date-from','history-date-to'].forEach(id => {
-  document.getElementById(id)?.addEventListener('input', renderHistory);
-});
+function attachCardActions(container) {
+  container.querySelectorAll('[data-action]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const { action, id } = btn.dataset;
 
-// Export JSON
-document.getElementById('export-btn').addEventListener('click', () => {
-  const data = loadEntries();
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'liftlog-export.json';
-  a.click();
-  toast('Exported!', 'success');
-});
+      if (action === 'delete') {
+        const ok = await openConfirm('Delete entry?', 'This entry will be permanently removed.');
+        if (!ok) return;
+        workouts = workouts.filter(w => w.id !== id);
+        persist(workouts);
+        toast('Entry deleted.', 'info');
+        if (currentSection === 'history') renderHistory();
+        renderTodayList();
+      }
 
-// ── Share (URL-based) ─────────────────────────────────────────────────────────
-document.getElementById('share-btn').addEventListener('click', openShareModal);
-document.getElementById('share-stats-btn').addEventListener('click', openShareModal);
-
-function openShareModal() {
-  const entries = loadEntries();
-  if (!entries.length) { toast('No entries to share yet.', 'error'); return; }
-  const prMap = computePRMap(entries);
-  const payload = {
-    owner: 'LiftLog User',
-    prs: prMap,
-    totalEntries: entries.length,
-    exercises: allExercises(entries).length,
-    exported: new Date().toISOString().slice(0,10),
-  };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  const url = `${location.href.split('?')[0]}?share=${encoded}`;
-  document.getElementById('share-link-input').value = url;
-  document.getElementById('share-modal-overlay').style.display = 'flex';
-}
-
-document.getElementById('share-modal-close').addEventListener('click', () => {
-  document.getElementById('share-modal-overlay').style.display = 'none';
-});
-
-document.getElementById('copy-link-btn').addEventListener('click', () => {
-  const inp = document.getElementById('share-link-input');
-  inp.select();
-  navigator.clipboard.writeText(inp.value).then(() => toast('Link copied!', 'success'));
-});
-
-document.getElementById('share-modal-overlay').addEventListener('click', e => {
-  if (e.target === document.getElementById('share-modal-overlay'))
-    document.getElementById('share-modal-overlay').style.display = 'none';
-});
-
-// Shared view
-function checkSharedView() {
-  const params = new URLSearchParams(location.search);
-  const share = params.get('share');
-  if (!share) return;
-  try {
-    const data = JSON.parse(decodeURIComponent(escape(atob(share))));
-    document.getElementById('shared-banner').style.display = 'block';
-    document.getElementById('shared-owner-name').textContent = data.owner || 'someone';
-    // Show shared PRs in stats section
-    showSection('stats');
-    renderSharedStats(data);
-    // Disable nav to log/history
-    document.querySelectorAll('.nav-btn[data-section="log"], .nav-btn[data-section="history"]').forEach(b => {
-      b.style.opacity = '0.4';
-      b.style.pointerEvents = 'none';
+      if (action === 'duplicate') {
+        const src = workouts.find(w => w.id === id);
+        if (!src) return;
+        const copy = { ...src, id: uid(), date: todayISO() };
+        workouts.unshift(copy);
+        persist(workouts);
+        toast(`Duplicated "${src.exercise}" to today.`, 'success');
+        renderTodayList();
+        if (currentSection === 'history') renderHistory();
+      }
     });
-  } catch { /* invalid share link, ignore */ }
+  });
 }
 
-function renderSharedStats(data) {
-  const grid = document.getElementById('stats-grid');
-  grid.innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total Entries</div><div class="stat-value">${data.totalEntries}</div></div>
-    <div class="stat-card"><div class="stat-label">Exercises Tracked</div><div class="stat-value">${data.exercises}</div></div>
-    <div class="stat-card"><div class="stat-label">Shared On</div><div class="stat-value" style="font-size:1rem">${data.exported}</div></div>
-  `;
-  const prsEl = document.getElementById('all-prs');
-  const prs = data.prs || {};
-  const exercises = Object.keys(prs).sort();
-  if (!exercises.length) { prsEl.innerHTML = '<p style="color:var(--text-muted)">No PRs shared.</p>'; return; }
-  prsEl.innerHTML = `<div class="pr-banner" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
-    ${exercises.map(ex => {
-      const p = prs[ex];
-      return `<div class="pr-card">
-        <div class="pr-card-label">${ex}</div>
-        <div class="pr-card-value">${p.weight > 0 ? p.weight + ' kg' : p.reps + ' reps'}</div>
-        <div class="pr-card-sub">Best weight · ${p.reps} max reps</div>
+/* ── History ──────────────────────────────────────────────── */
+let histSearch = '';
+let histDate   = '';
+
+document.getElementById('history-search').addEventListener('input', e => {
+  histSearch = e.target.value;
+  renderHistory();
+});
+
+document.getElementById('history-date').addEventListener('change', e => {
+  histDate = e.target.value;
+  renderHistory();
+});
+
+document.getElementById('clear-all-btn').addEventListener('click', async () => {
+  const ok = await openConfirm(
+    'Clear all data?',
+    'This permanently deletes every workout entry. This cannot be undone.'
+  );
+  if (!ok) return;
+  workouts = [];
+  persist(workouts);
+  toast('All data cleared.', 'info');
+  renderHistory();
+  renderTodayList();
+});
+
+function renderHistory() {
+  const container = document.getElementById('history-list');
+  let filtered = workouts.slice(); // already newest-first
+
+  if (histSearch.trim()) {
+    const q = histSearch.toLowerCase();
+    filtered = filtered.filter(w => w.exercise.toLowerCase().includes(q));
+  }
+  if (histDate) {
+    filtered = filtered.filter(w => w.date === histDate);
+  }
+
+  if (!filtered.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">&#128203;</span>
+        <p>No workouts found.</p>
       </div>`;
-    }).join('')}
-  </div>`;
+    return;
+  }
+
+  // Group by date (sorted newest first)
+  const byDate = Object.groupBy
+    ? Object.groupBy(filtered, w => w.date)
+    : filtered.reduce((acc, w) => { (acc[w.date] = acc[w.date] || []).push(w); return acc; }, {});
+
+  const dates = Object.keys(byDate).sort((a, b) => b.localeCompare(a));
+
+  container.innerHTML = dates.map(date => `
+    <div class="workout-day">
+      <div class="workout-day-header">
+        <span class="day-label">${relDate(date)}</span>
+        <span class="day-divider"></span>
+      </div>
+      ${byDate[date].map(w => buildWorkoutCard(w)).join('')}
+    </div>
+  `).join('');
+
+  attachCardActions(container);
 }
 
-// ── Progress ──────────────────────────────────────────────────────────────────
+/* ── Progress Section ─────────────────────────────────────── */
 let progressChart = null;
-let activeMetric = 'weight';
+let activeMetric  = 'weight';
 
-function renderProgressSection() {
-  const entries = loadEntries();
-  const exercises = allExercises(entries);
-  const sel = document.getElementById('progress-exercise-select');
-  const current = sel.value;
-  sel.innerHTML = '<option value="">— Select Exercise —</option>' +
-    exercises.map(e => `<option value="${e}" ${e===current?'selected':''}>${e}</option>`).join('');
-  updateProgressChart();
-}
-
-document.getElementById('progress-exercise-select').addEventListener('change', updateProgressChart);
-
-document.querySelectorAll('.metric-tab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.metric-tab').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-    activeMetric = btn.dataset.metric;
-    updateProgressChart();
+document.querySelectorAll('.metric-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.metric-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    activeMetric = tab.dataset.metric;
+    drawChart();
   });
 });
 
-function updateProgressChart() {
-  const exercise = document.getElementById('progress-exercise-select').value;
+document.getElementById('progress-exercise').addEventListener('change', () => {
+  drawChart();
+  renderPRCards();
+  renderBestSets();
+});
+
+function populateExerciseSelect() {
+  const sel  = document.getElementById('progress-exercise');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">-- Select exercise --</option>';
+  allExerciseNames().forEach(name => {
+    const opt = document.createElement('option');
+    opt.value = name;
+    opt.textContent = name;
+    if (name === prev) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function renderProgress() {
+  populateExerciseSelect();
+  drawChart();
+  renderPRCards();
+  renderBestSets();
+}
+
+function exerciseTimeSeries(exercise) {
+  if (!exercise) return [];
+  return workouts
+    .filter(w => w.exercise === exercise)
+    .map(w => ({
+      date:   w.date,
+      weight: setMaxWeight(w.sets),
+      reps:   setMaxReps(w.sets),
+      volume: setVolume(w.sets),
+      orm:    setBest1rm(w.sets),
+    }))
+    .sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function drawChart() {
+  const exercise    = document.getElementById('progress-exercise').value;
+  const canvas      = document.getElementById('progress-chart');
   const placeholder = document.getElementById('chart-placeholder');
-  const prBanner = document.getElementById('pr-banner');
+
+  if (progressChart) { progressChart.destroy(); progressChart = null; }
 
   if (!exercise) {
+    canvas.style.display      = 'none';
     placeholder.style.display = 'block';
-    prBanner.innerHTML = '';
-    if (progressChart) { progressChart.destroy(); progressChart = null; }
+    placeholder.textContent   = 'Select an exercise above to view your progress chart.';
     return;
   }
 
-  const entries = loadEntries()
-    .filter(e => e.exercise === exercise)
-    .sort((a, b) => a.date.localeCompare(b.date));
+  const series = exerciseTimeSeries(exercise);
 
-  if (!entries.length) {
-    placeholder.textContent = 'No data for this exercise.';
+  if (series.length < 1) {
+    canvas.style.display      = 'none';
     placeholder.style.display = 'block';
-    prBanner.innerHTML = '';
+    placeholder.textContent   = 'No data yet for this exercise. Log some sets first!';
     return;
   }
 
+  canvas.style.display      = 'block';
   placeholder.style.display = 'none';
 
-  // PRs
-  const allW = entries.map(e => maxWeight(e.sets));
-  const allR = entries.map(e => maxReps(e.sets));
-  const allV = entries.map(e => totalVolume(e.sets));
-  const prWeight = Math.max(...allW);
-  const prReps   = Math.max(...allR);
-  const prVol    = Math.max(...allV);
-  const unit = entries[0].sets[0]?.unit || 'kg';
-  const prWeightDate = entries[allW.indexOf(prWeight)].date;
-  const prRepsDate   = entries[allR.indexOf(prReps)].date;
+  const metricConfig = {
+    weight: { key: 'weight', label: 'Max Weight (kg)', color: '#6c63ff' },
+    reps:   { key: 'reps',   label: 'Max Reps',        color: '#3ecf8e' },
+    volume: { key: 'volume', label: 'Session Volume (kg)', color: '#f4c430' },
+    '1rm':  { key: 'orm',    label: 'Est. 1RM (kg)',    color: '#e05c5c' },
+  };
 
-  prBanner.innerHTML = `
-    <div class="pr-card"><div class="pr-card-label">🏆 Best Weight</div><div class="pr-card-value">${prWeight} <small style="font-size:1rem">${unit}</small></div><div class="pr-card-sub">${fmtDate(prWeightDate)}</div></div>
-    <div class="pr-card"><div class="pr-card-label">🔥 Best Reps (1 set)</div><div class="pr-card-value">${prReps}</div><div class="pr-card-sub">${fmtDate(prRepsDate)}</div></div>
-    <div class="pr-card"><div class="pr-card-label">📦 Best Volume</div><div class="pr-card-value">${prVol.toLocaleString()} <small style="font-size:1rem">${unit}</small></div><div class="pr-card-sub">Single session</div></div>
-    <div class="pr-card"><div class="pr-card-label">Sessions</div><div class="pr-card-value">${entries.length}</div><div class="pr-card-sub">Total logged</div></div>
-  `;
+  const m      = metricConfig[activeMetric];
+  const values = series.map(d => d[m.key]);
+  const labels = series.map(d => {
+    const [, mo, dy] = d.date.split('-');
+    return `${Number(mo)}/${Number(dy)}`;
+  });
 
-  const labels = entries.map(e => e.date);
-  const metricFn = { weight: maxWeight, volume: totalVolume, reps: maxReps };
-  const values = entries.map(e => metricFn[activeMetric](e.sets));
-  const metricLabel = { weight: `Max Weight (${unit})`, volume: `Total Volume (${unit})`, reps: 'Max Reps' };
-
-  const ctx = document.getElementById('progress-chart').getContext('2d');
-  if (progressChart) progressChart.destroy();
+  const ctx      = canvas.getContext('2d');
+  const gradient = ctx.createLinearGradient(0, 0, 0, 280);
+  gradient.addColorStop(0, m.color + '55');
+  gradient.addColorStop(1, m.color + '00');
 
   progressChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
       datasets: [{
-        label: metricLabel[activeMetric],
-        data: values,
-        borderColor: '#6c63ff',
-        backgroundColor: 'rgba(108,99,255,0.12)',
-        borderWidth: 2.5,
-        pointRadius: 5,
-        pointHoverRadius: 7,
-        pointBackgroundColor: values.map((v, i) => v === Math.max(...values) ? '#f4c430' : '#6c63ff'),
-        pointBorderColor: '#0f1117',
-        pointBorderWidth: 2,
-        fill: true,
-        tension: 0.3,
-      }]
+        label:              m.label,
+        data:               values,
+        borderColor:        m.color,
+        backgroundColor:    gradient,
+        borderWidth:        2.5,
+        pointBackgroundColor: m.color,
+        pointRadius:        values.length > 30 ? 2 : 5,
+        pointHoverRadius:   7,
+        fill:               true,
+        tension:            0.35,
+      }],
     },
     options: {
       responsive: true,
@@ -511,81 +608,249 @@ function updateProgressChart() {
         legend: { display: false },
         tooltip: {
           backgroundColor: '#20243a',
-          borderColor: '#2e3352',
-          borderWidth: 1,
-          titleColor: '#e8eaf6',
-          bodyColor: '#9ba3c7',
+          borderColor:     '#2e3352',
+          borderWidth:     1,
+          titleColor:      '#e8eaf6',
+          bodyColor:       '#9ba3c7',
+          padding:         10,
           callbacks: {
-            title: items => fmtDate(items[0].label),
-            label: item => ` ${item.dataset.label}: ${item.parsed.y}`,
-          }
-        }
+            label: ctx => ` ${ctx.parsed.y}${activeMetric === 'reps' ? ' reps' : ' kg'}`,
+          },
+        },
       },
       scales: {
         x: {
-          ticks: { color: '#5c6383', font: { size: 11 }, maxRotation: 45 },
-          grid: { color: '#2e3352' }
+          grid:  { color: '#2e3352' },
+          ticks: { color: '#5c6383', font: { size: 11 }, maxTicksLimit: 10 },
         },
         y: {
-          ticks: { color: '#5c6383', font: { size: 11 } },
-          grid: { color: '#2e3352' },
+          grid:       { color: '#2e3352' },
+          ticks:      { color: '#5c6383', font: { size: 11 } },
           beginAtZero: false,
-        }
-      }
-    }
+        },
+      },
+    },
   });
 }
 
-// ── Stats ─────────────────────────────────────────────────────────────────────
-function renderStats() {
-  const entries = loadEntries();
-  const grid = document.getElementById('stats-grid');
-  const prsEl = document.getElementById('all-prs');
+function renderPRCards() {
+  const exercise = document.getElementById('progress-exercise').value;
+  const banner   = document.getElementById('exercise-prs');
+  if (!exercise) { banner.style.display = 'none'; return; }
 
-  if (!entries.length) {
-    grid.innerHTML = '';
-    prsEl.innerHTML = `<div class="empty-state"><span class="empty-icon">🏆</span><p>Log some workouts to see your PRs!</p></div>`;
+  const series = exerciseTimeSeries(exercise);
+  if (!series.length) { banner.style.display = 'none'; return; }
+
+  const prWeight = Math.max(...series.map(d => d.weight));
+  const prReps   = Math.max(...series.map(d => d.reps));
+  const prVol    = Math.max(...series.map(d => d.volume));
+  const pr1rm    = Math.max(...series.map(d => d.orm));
+
+  const prWeightDate = series.find(d => d.weight === prWeight)?.date;
+  const pr1rmDate    = series.find(d => d.orm    === pr1rm)?.date;
+
+  banner.style.display = 'grid';
+  banner.innerHTML = `
+    <div class="pr-card">
+      <div class="pr-card-label">&#127942; Max Weight</div>
+      <div class="pr-card-value">${prWeight} <span style="font-size:1rem;font-weight:600">kg</span></div>
+      <div class="pr-card-sub">${prWeightDate ? relDate(prWeightDate) : ''}</div>
+    </div>
+    <div class="pr-card">
+      <div class="pr-card-label">&#128293; Max Reps</div>
+      <div class="pr-card-value">${prReps}</div>
+      <div class="pr-card-sub">reps in one set</div>
+    </div>
+    <div class="pr-card">
+      <div class="pr-card-label">&#128230; Best Volume</div>
+      <div class="pr-card-value">${fmtVol(prVol)} <span style="font-size:1rem;font-weight:600">kg</span></div>
+      <div class="pr-card-sub">in one session</div>
+    </div>
+    <div class="pr-card">
+      <div class="pr-card-label">&#9889; Est. 1RM</div>
+      <div class="pr-card-value">${pr1rm} <span style="font-size:1rem;font-weight:600">kg</span></div>
+      <div class="pr-card-sub">${pr1rmDate ? relDate(pr1rmDate) : ''}</div>
+    </div>
+  `;
+}
+
+function renderBestSets() {
+  const exercise = document.getElementById('progress-exercise').value;
+  const section  = document.getElementById('best-sets-section');
+  if (!exercise) { section.style.display = 'none'; return; }
+
+  const entries = workouts.filter(w => w.exercise === exercise);
+  if (!entries.length) { section.style.display = 'none'; return; }
+
+  const allSets = [];
+  entries.forEach(w => {
+    w.sets.forEach((s, i) => {
+      allSets.push({
+        date:   w.date,
+        setNum: i + 1,
+        reps:   Number(s.reps)   || 0,
+        weight: Number(s.weight) || 0,
+        vol:    (Number(s.reps) || 0) * (Number(s.weight) || 0),
+        orm:    e1rm(s.weight, s.reps),
+      });
+    });
+  });
+
+  allSets.sort((a, b) => b.orm - a.orm);
+  const top    = allSets.slice(0, 10);
+  const maxOrm = top[0]?.orm || 0;
+
+  section.style.display = 'block';
+  document.getElementById('best-sets-body').innerHTML = top.map((s, idx) => `
+    <tr ${s.orm === maxOrm && idx === 0 ? 'class="is-pr"' : ''}>
+      <td>${relDate(s.date)}</td>
+      <td>${s.setNum}</td>
+      <td>${s.reps}</td>
+      <td>${s.weight} kg</td>
+      <td>${s.vol.toFixed(0)} kg</td>
+      <td>${s.orm} kg${idx === 0 ? ' &#127942;' : ''}</td>
+    </tr>
+  `).join('');
+}
+
+/* ── Stats Section ────────────────────────────────────────── */
+function renderStats() {
+  renderStatsGrid();
+  renderAllPRs();
+}
+
+function calcStreak() {
+  const days = [...new Set(workouts.map(w => w.date))].sort((a, b) => b.localeCompare(a));
+  if (!days.length) return 0;
+  let streak = 0;
+  let cursor = todayISO();
+  for (const day of days) {
+    if (day === cursor) {
+      streak++;
+      const d = new Date(cursor + 'T00:00:00');
+      d.setDate(d.getDate() - 1);
+      cursor = d.toISOString().slice(0, 10);
+    } else {
+      break;
+    }
+  }
+  return streak;
+}
+
+function renderStatsGrid() {
+  const totalEntries    = workouts.length;
+  const uniqueDays      = new Set(workouts.map(w => w.date)).size;
+  const uniqueExercises = new Set(workouts.map(w => w.exercise)).size;
+  const totalSets       = workouts.reduce((a, w) => a + w.sets.length, 0);
+  const totalReps       = workouts.reduce((a, w) => a + w.sets.reduce((b, s) => b + (Number(s.reps) || 0), 0), 0);
+  const totalVol        = workouts.reduce((a, w) => a + setVolume(w.sets), 0);
+  const streak          = calcStreak();
+
+  // Most-logged exercise
+  const freq = {};
+  workouts.forEach(w => { freq[w.exercise] = (freq[w.exercise] || 0) + 1; });
+  const fav = Object.entries(freq).sort((a, b) => b[1] - a[1])[0];
+
+  document.getElementById('stats-grid').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">Workouts</div>
+      <div class="stat-value">${totalEntries}</div>
+      <div class="stat-sub">entries logged</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Active Days</div>
+      <div class="stat-value">${uniqueDays}</div>
+      <div class="stat-sub">training days</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Exercises</div>
+      <div class="stat-value">${uniqueExercises}</div>
+      <div class="stat-sub">unique lifts</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Sets</div>
+      <div class="stat-value">${totalSets}</div>
+      <div class="stat-sub">sets performed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Reps</div>
+      <div class="stat-value">${totalReps.toLocaleString()}</div>
+      <div class="stat-sub">reps performed</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Total Volume</div>
+      <div class="stat-value">${fmtVol(totalVol)}</div>
+      <div class="stat-sub">kg moved</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Streak</div>
+      <div class="stat-value">${streak} &#128293;</div>
+      <div class="stat-sub">consecutive days</div>
+    </div>
+    ${fav ? `
+    <div class="stat-card">
+      <div class="stat-label">Favourite</div>
+      <div class="stat-value" style="font-size:1rem;line-height:1.3">${escHtml(fav[0])}</div>
+      <div class="stat-sub">${fav[1]} sessions</div>
+    </div>` : ''}
+  `;
+}
+
+function renderAllPRs() {
+  const container  = document.getElementById('all-prs-list');
+  const exercises  = allExerciseNames();
+
+  if (!exercises.length) {
+    container.innerHTML = `
+      <div class="empty-state">
+        <span class="empty-icon">&#127942;</span>
+        <p>Log some workouts to start tracking PRs!</p>
+      </div>`;
     return;
   }
 
-  const totalSets = entries.reduce((a, e) => a + e.sets.length, 0);
-  const totalVol  = entries.reduce((a, e) => a + totalVolume(e.sets), 0);
-  const days = new Set(entries.map(e => e.date)).size;
-  const exCount = allExercises(entries).length;
+  container.innerHTML = exercises.map(ex => {
+    const entries = workouts.filter(w => w.exercise === ex);
+    const prW     = Math.max(...entries.map(w => setMaxWeight(w.sets)));
+    const prR     = Math.max(...entries.map(w => setMaxReps(w.sets)));
+    const pr1     = Math.max(...entries.map(w => setBest1rm(w.sets)));
+    const prEntry = entries
+      .filter(w => setMaxWeight(w.sets) === prW)
+      .sort((a, b) => b.date.localeCompare(a.date))[0];
 
-  grid.innerHTML = `
-    <div class="stat-card"><div class="stat-label">Total Sessions</div><div class="stat-value">${entries.length}</div><div class="stat-sub">${days} unique days</div></div>
-    <div class="stat-card"><div class="stat-label">Total Sets</div><div class="stat-value">${totalSets}</div></div>
-    <div class="stat-card"><div class="stat-label">Total Volume</div><div class="stat-value">${(totalVol/1000).toFixed(1)}k</div><div class="stat-sub">combined kg</div></div>
-    <div class="stat-card"><div class="stat-label">Exercises</div><div class="stat-value">${exCount}</div><div class="stat-sub">unique lifts</div></div>
-  `;
-
-  const prMap = computePRMap(entries);
-  const exercises = Object.keys(prMap).sort();
-
-  prsEl.innerHTML = `<div class="pr-banner" style="grid-template-columns:repeat(auto-fill,minmax(200px,1fr))">
-    ${exercises.map(ex => {
-      const p = prMap[ex];
-      const lastEntry = entries.filter(e => e.exercise === ex).sort((a,b) => b.date.localeCompare(a.date))[0];
-      const unit = lastEntry?.sets[0]?.unit || 'kg';
-      return `<div class="pr-card" style="cursor:pointer" onclick="goToProgress('${ex}')">
-        <div class="pr-card-label">${ex}</div>
-        <div class="pr-card-value">${p.weight > 0 ? p.weight + ' ' + unit : '—'}</div>
-        <div class="pr-card-sub">${p.reps} max reps · ${p.volume.toLocaleString()} ${unit} vol</div>
-      </div>`;
-    }).join('')}
-  </div>`;
+    return `
+      <div class="workout-card" style="margin-bottom:0.75rem">
+        <div class="workout-card-header">
+          <div>
+            <div class="exercise-name">${escHtml(ex)}</div>
+            <div style="font-size:0.75rem;color:var(--text-muted)">
+              ${entries.length} session${entries.length !== 1 ? 's' : ''}
+              &middot; PR set ${prEntry ? relDate(prEntry.date) : ''}
+            </div>
+          </div>
+          <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
+            <span class="badge badge-pr">&#127942; ${prW} kg</span>
+            <span style="font-size:0.75rem;color:var(--text-muted)">1RM ~${pr1} kg</span>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0.5rem;padding:0.75rem 1.1rem">
+          <div style="text-align:center">
+            <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Max Weight</div>
+            <div style="font-size:1.15rem;font-weight:700">${prW} kg</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Max Reps</div>
+            <div style="font-size:1.15rem;font-weight:700">${prR}</div>
+          </div>
+          <div style="text-align:center">
+            <div style="font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em">Est. 1RM</div>
+            <div style="font-size:1.15rem;font-weight:700">${pr1} kg</div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
-function goToProgress(exercise) {
-  showSection('progress');
-  setTimeout(() => {
-    document.getElementById('progress-exercise-select').value = exercise;
-    updateProgressChart();
-  }, 50);
-}
-
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.getElementById('date-input').value = todayISO();
-addSetRow();
-checkSharedView();
+/* ── Initialise ───────────────────────────────────────────── */
+renderTodayList();

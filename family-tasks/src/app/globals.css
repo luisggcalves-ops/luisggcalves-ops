@@ -1,0 +1,168 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* ---------------------------------------------------------------------------
+   Design tokens. Soft neutrals with a calm indigo accent; everything in the
+   UI references these so light/dark stay consistent.
+   --------------------------------------------------------------------------- */
+:root {
+  --bg: #f7f7f5;
+  --surface: #ffffff;
+  --surface-2: #f2f2ef;
+  --line: #e7e6e2;
+  --line-strong: #d6d5d0;
+  --ink: #1c1b19;
+  --ink-2: #44423e;
+  --muted: #7a7873;
+  --accent: #5b5bd6;
+  --accent-soft: #ededfc;
+  --accent-ink: #3e3ea8;
+  --success: #2f9e6b;
+  --success-soft: #e6f5ee;
+  --warning: #c27a14;
+  --warning-soft: #fbf1e1;
+  --danger: #d4483f;
+  --danger-soft: #fcebea;
+  --shadow: 0 1px 2px rgb(20 20 15 / 0.04), 0 4px 16px -6px rgb(20 20 15 / 0.08);
+  --shadow-lg: 0 2px 6px rgb(20 20 15 / 0.05), 0 24px 48px -16px rgb(20 20 15 / 0.18);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111110;
+    --surface: #1a1a19;
+    --surface-2: #222220;
+    --line: #2c2c2a;
+    --line-strong: #3a3a37;
+    --ink: #eeeeec;
+    --ink-2: #c9c8c4;
+    --muted: #8f8d88;
+    --accent: #8080f2;
+    --accent-soft: #24244a;
+    --accent-ink: #b4b4ff;
+    --success: #4cc38a;
+    --success-soft: #16301f;
+    --warning: #f0a83c;
+    --warning-soft: #33260f;
+    --danger: #f2665d;
+    --danger-soft: #3a1917;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px -6px rgb(0 0 0 / 0.4);
+    --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.3), 0 24px 48px -16px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111110;
+  --surface: #1a1a19;
+  --surface-2: #222220;
+  --line: #2c2c2a;
+  --line-strong: #3a3a37;
+  --ink: #eeeeec;
+  --ink-2: #c9c8c4;
+  --muted: #8f8d88;
+  --accent: #8080f2;
+  --accent-soft: #24244a;
+  --accent-ink: #b4b4ff;
+  --success: #4cc38a;
+  --success-soft: #16301f;
+  --warning: #f0a83c;
+  --warning-soft: #33260f;
+  --danger: #f2665d;
+  --danger-soft: #3a1917;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px -6px rgb(0 0 0 / 0.4);
+  --shadow-lg: 0 2px 6px rgb(0 0 0 / 0.3), 0 24px 48px -16px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --shadow-card: var(--shadow);
+  --shadow-pop: var(--shadow-lg);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+html {
+  -webkit-tap-highlight-color: transparent;
+}
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-feature-settings: "cv11", "ss01";
+}
+
+@utility btn {
+  @apply inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-medium transition
+    select-none active:scale-[0.98] disabled:pointer-events-none disabled:opacity-50
+    focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent;
+}
+@utility btn-primary {
+  @apply btn bg-ink text-surface hover:bg-ink-2;
+}
+@utility btn-accent {
+  @apply btn bg-accent text-white hover:brightness-110;
+}
+@utility btn-secondary {
+  @apply btn border border-line bg-surface text-ink hover:bg-surface-2;
+}
+@utility btn-ghost {
+  @apply btn text-ink-2 hover:bg-surface-2 hover:text-ink;
+}
+@utility btn-danger {
+  @apply btn bg-danger-soft text-danger hover:brightness-95;
+}
+@utility card {
+  @apply rounded-2xl border border-line bg-surface shadow-card;
+}
+@utility input {
+  @apply h-10 w-full rounded-xl border border-line bg-surface px-3 text-sm text-ink transition
+    placeholder:text-muted focus:border-accent focus:ring-4 focus:ring-accent/15 focus:outline-none;
+}
+@utility label {
+  @apply mb-1.5 block text-[13px] font-medium text-ink-2;
+}
+@utility section-title {
+  @apply text-[13px] font-semibold tracking-wide text-muted uppercase;
+}
+@utility chip {
+  @apply inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-surface px-3 text-[13px]
+    font-medium text-ink-2 transition hover:bg-surface-2;
+  &[data-active="true"] {
+    @apply border-transparent bg-ink text-surface hover:bg-ink;
+  }
+}
+
+/* subtle entrance animation */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-rise { animation: rise 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+
+@keyframes pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+.animate-pop { animation: pop 0.3s ease-out; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

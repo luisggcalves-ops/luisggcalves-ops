@@ -1,0 +1,18 @@
+# Netlify settings for Teamsheet.
+# There is no build step: Netlify just publishes the files in teamsheet/.
+[build]
+  publish = "teamsheet"
+  command = ""
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "no-referrer"
+    X-Frame-Options = "DENY"
+
+# Always fetch the newest app files after you redeploy.
+[[headers]]
+  for = "/*.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"

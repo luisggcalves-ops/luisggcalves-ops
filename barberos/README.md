@@ -126,6 +126,10 @@ Next.js 16 (App Router) · React 19 · TypeScript (strict) · PostgreSQL 16 · D
 - **Auth:** Better Auth over HTTP endpoints with origin/CSRF checks, scrypt password hashing, DB-backed rate limiting (sign-in 10/min, sign-up 5/min, reset 3/min), and sessions revoked on password reset.
 - **Authorization:** the server checks a role permission map (`src/server/authz/permissions.ts`) on every action. The UI only uses it to hide things.
 
+## Try it in your browser
+
+No installation needed: [open BarberOS in GitHub Codespaces](https://codespaces.new/luisggcalves-ops/luisggcalves-ops?ref=claude/nifty-ramanujan-peplt0). See [CODESPACES.md](CODESPACES.md).
+
 ## Getting started
 
 Requirements: Node 22+ and PostgreSQL 16 (local, or via Docker).

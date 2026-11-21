@@ -1,0 +1,17 @@
+{
+  // Opens BarberOS in GitHub Codespaces with Postgres, demo data and the app already running.
+  "name": "BarberOS",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+  "forwardPorts": [3000],
+  "portsAttributes": {
+    "3000": { "label": "BarberOS", "onAutoForward": "openBrowser" }
+  },
+  "hostRequirements": { "cpus": 2, "memory": "4gb" },
+  "postCreateCommand": "bash barberos/scripts/codespace-setup.sh",
+  "postAttachCommand": "bash barberos/scripts/codespace-start.sh",
+  "customizations": {
+    "codespaces": { "openFiles": ["barberos/CODESPACES.md"] }
+  }
+}

@@ -12,6 +12,9 @@ export const auth = betterAuth({
   appName: "BarberOS",
   baseURL: env().BETTER_AUTH_URL,
   secret: env().BETTER_AUTH_SECRET,
+  // In GitHub Codespaces the app is reached through a forwarded https address and
+  // internally on localhost. Trust both, but only there.
+  trustedOrigins: process.env.CODESPACES === "true" ? [env().BETTER_AUTH_URL, "http://localhost:3000"] : [],
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: {

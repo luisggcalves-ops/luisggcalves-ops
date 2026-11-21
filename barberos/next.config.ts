@@ -7,12 +7,19 @@ const securityHeaders = [
   { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
 ];
 
+// GitHub Codespaces serves the app through *.app.github.dev. Allow that origin only when running there.
+const codespaceOrigins = process.env.CODESPACES === "true" ? ["*.app.github.dev"] : [];
+
 const nextConfig: NextConfig = {
   // Every BarberOS screen is authenticated and database-driven, so we use classic
   // request-time rendering. Cache Components can be adopted later, route by route.
   cacheComponents: false,
   poweredByHeader: false,
   serverExternalPackages: ["pg"],
+  allowedDevOrigins: codespaceOrigins,
+  experimental: {
+    serverActions: { allowedOrigins: codespaceOrigins },
+  },
   turbopack: {
     rules: {
       "*.css": {

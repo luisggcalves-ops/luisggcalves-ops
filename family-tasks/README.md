@@ -75,6 +75,10 @@ cp .env.example .env.local  # paste them in
 npm run dev                 # http://localhost:3000
 ```
 
+Want a lived-in family to click around? `npm run seed:demo` creates "The Silvas" with four members, routines, rewards and a weekly challenge. Sign in as `ana@example.com` (admin) or `mia@example.com` (member), password `hearth-demo`.
+
+To open the app from another device or a remote preview where only one port is reachable, build with `NEXT_PUBLIC_SUPABASE_SAME_ORIGIN=1`, run `npx next start -p 3001`, then `npm run preview:proxy`. This serves the app and the Supabase API, including Realtime, together on port 3000.
+
 Email confirmation is off locally, so sign-up logs you straight in. To try the multi-person flow, open a second browser or a private window and join with the invite code from **Family**.
 
 ## Tests

@@ -110,21 +110,29 @@ Requirements: Node 22+ and PostgreSQL 16 (local, or via Docker).
    psql -U postgres -f scripts/db/init-local.sql
    ```
 
-2. Configure the environment, then set `BETTER_AUTH_SECRET` in `.env` to a random 32+ character value (for example from `openssl rand -base64 32`):
+2. Configure the environment. The example values work for local use. For anything shared, set `BETTER_AUTH_SECRET` in `.env` to a random 32+ character value (for example from `openssl rand -base64 32`):
 
    ```bash
    cp .env.example .env
    ```
 
-3. Install, migrate and run:
+3. Install, migrate, load the demo shop and run:
 
    ```bash
    npm install
    npm run db:migrate
+   npm run seed:demo
    npm run dev
    ```
 
-Open http://localhost:3000. Without `RESEND_API_KEY`, emails (password resets, invites) are printed in the server console.
+Open http://localhost:3000 and sign in with a demo account (password `barberos-demo`):
+
+| Account | What you'll see |
+|---|---|
+| `owner@demo.barberos.test` | Owner dashboard with 3 barbers, 5 services and a week of bookings |
+| `barber@demo.barberos.test` | The barber phone app (open it in your browser's phone view) |
+
+The demo shop is flagged as demo data and shows a banner on every screen. You can also create your own shop with **Get started**. Without `RESEND_API_KEY`, emails (password resets, invites) are printed in the server console.
 
 ## Scripts
 
@@ -135,6 +143,7 @@ Open http://localhost:3000. Without `RESEND_API_KEY`, emails (password resets, i
 | `npm run lint` / `npm run typecheck` | ESLint / TypeScript |
 | `npm run db:generate` | Generate a migration from `src/server/db/schema.ts` |
 | `npm run db:migrate` | Apply migrations (uses `MIGRATION_DATABASE_URL`) |
+| `npm run seed:demo` | Create the demo shop and accounts (safe to run twice, refuses in production) |
 | `npm test` | Unit and integration tests (integration uses the `barberos_test` database) |
 | `npm run test:e2e` | Playwright end-to-end tests (desktop and phone) against a production build. Run `npm run build` first. |
 

@@ -6,6 +6,7 @@ import { SidebarNav } from "@/components/shell/sidebar-nav";
 import { ShopSwitcher } from "@/components/shell/shop-switcher";
 import { UserMenu } from "@/components/shell/user-menu";
 import { MobileDrawer } from "@/components/shell/mobile-drawer";
+import { DemoBanner } from "@/components/shell/demo-banner";
 
 export default async function OwnerLayout({ children }: { children: React.ReactNode }) {
   const ctx = await requirePageContext("dashboard.view", "/app");
@@ -29,6 +30,7 @@ export default async function OwnerLayout({ children }: { children: React.ReactN
         {sidebar}
       </aside>
       <div className="min-w-0">
+        {ctx.shop.isDemo ? <DemoBanner /> : null}
         <header className="sticky top-0 z-20 flex h-14 items-center gap-3 border-b border-border bg-bg/85 px-4 backdrop-blur lg:hidden">
           <MobileDrawer>{sidebar}</MobileDrawer>
           <Logo />

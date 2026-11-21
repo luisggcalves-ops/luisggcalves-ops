@@ -180,6 +180,7 @@ export async function listUserMemberships(userId: string) {
         shopSlug: shops.slug,
         timezone: shops.timezone,
         currency: shops.currency,
+        isDemo: shops.isDemo,
         role: shopMemberships.role,
       })
       .from(shopMemberships)

@@ -20,6 +20,7 @@ import {
 } from "@/lib/validation/shop";
 import { shortTime } from "@/lib/time";
 import { closureSchema } from "@/lib/validation/scheduling";
+import { bookingSettingsSchema } from "@/lib/validation/booking";
 import type { ActorContext, SessionUser } from "../context";
 import { audit } from "../audit";
 import { initStaffProfile } from "../staff/init";
@@ -249,6 +250,39 @@ export async function deleteClosure(ctx: ActorContext, closureId: unknown) {
       entityType: "shop_closure",
       entityId: id,
       changes: { startsOn: row.startsOn, endsOn: row.endsOn },
+    });
+  });
+}
+
+/* --------------------------- online booking settings --------------------------- */
+
+export async function getBookingSettings(ctx: ActorContext) {
+  assertCan(ctx.role, "shop.view");
+  return withTenantTx(ctx, async (tx) => {
+    const [row] = await tx
+      .select({ settings: shopSettings, slug: shops.slug, brandColor: shops.brandColor })
+      .from(shopSettings)
+      .innerJoin(shops, eq(shops.id, shopSettings.shopId))
+      .where(eq(shopSettings.shopId, ctx.shopId));
+    if (!row) throw notFound("Shop not found.");
+    return { ...row.settings, slug: row.slug, brandColor: row.brandColor };
+  });
+}
+
+export async function updateBookingSettings(ctx: ActorContext, input: unknown) {
+  assertCan(ctx.role, "shop.update");
+  const data = parseInput(bookingSettingsSchema, input);
+  await withTenantTx(ctx, async (tx) => {
+    const { brandColor, ...settings } = data;
+    await tx.update(shopSettings).set(settings).where(eq(shopSettings.shopId, ctx.shopId));
+    await tx.update(shops).set({ brandColor: brandColor ?? null }).where(eq(shops.id, ctx.shopId));
+    await audit(tx, {
+      shopId: ctx.shopId,
+      actorUserId: ctx.userId,
+      action: "shop.booking_settings_updated",
+      entityType: "shop",
+      entityId: ctx.shopId,
+      changes: data,
     });
   });
 }

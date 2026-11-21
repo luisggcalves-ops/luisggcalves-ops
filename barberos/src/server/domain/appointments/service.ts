@@ -34,6 +34,41 @@ import { parseInput } from "../validate";
 import { ownStaffMemberId } from "../staff/service";
 import { findOrCreateCustomer } from "../customers/service";
 import { availableSlots, checkSlot, type DayAvailabilityInput } from "../scheduling/availability";
+import { enqueueEmail } from "@/server/notifications/outbox";
+import { formatMoney } from "@/lib/money";
+import { formatClock, formatDateLabel, zonedDate } from "@/lib/time";
+
+/** Tells the customer (if we have their email) that staff cancelled or moved their booking. */
+async function notifyCustomer(
+  tx: Tx,
+  shopId: string,
+  appt: { customerId: string; staffMemberId: string; serviceName: string; startsAt: Date; priceCents: number },
+  template: "booking_cancelled" | "booking_rescheduled",
+  previousStartsAt?: Date,
+) {
+  const [c] = await tx.select({ email: customers.email, name: customers.fullName }).from(customers).where(eq(customers.id, appt.customerId));
+  if (!c?.email) return;
+  const [shop] = await tx.select().from(shops).where(eq(shops.id, shopId));
+  const [staff] = await tx.select({ name: staffMembers.displayName }).from(staffMembers).where(eq(staffMembers.id, appt.staffMemberId));
+  const when = (d: Date) => `${formatDateLabel(zonedDate(d, shop.timezone))} at ${formatClock(d, shop.timezone)}`;
+  await enqueueEmail(tx, {
+    shopId,
+    recipient: c.email,
+    template,
+    payload: {
+      shopName: shop.name,
+      shopPhone: shop.phone,
+      shopAddress: [shop.addressLine, shop.city].filter(Boolean).join(", ") || null,
+      customerName: c.name,
+      serviceName: appt.serviceName,
+      staffName: staff?.name ?? "",
+      whenLabel: when(appt.startsAt),
+      priceLabel: formatMoney(appt.priceCents, shop.currency),
+      manageUrl: "",
+      previousWhenLabel: previousStartsAt ? when(previousStartsAt) : undefined,
+    },
+  });
+}
 
 /* ------------------------------------------------------------------------ */
 /* Status machine                                                            */
@@ -463,6 +498,13 @@ export async function rescheduleAppointment(ctx: ActorContext, input: unknown) {
         { startsAt, staffMemberId: data.staffMemberId },
         "staff",
       );
+      await notifyCustomer(
+        tx,
+        ctx.shopId,
+        { ...appt, staffMemberId: data.staffMemberId, startsAt },
+        "booking_rescheduled",
+        appt.startsAt,
+      );
     });
   } catch (err) {
     if (isOverlapViolation(err))
@@ -516,6 +558,7 @@ export async function changeAppointmentStatus(ctx: ActorContext, input: unknown,
       "staff",
     );
     if (data.to === "cancelled") {
+      if (appt.startsAt > now) await notifyCustomer(tx, ctx.shopId, appt, "booking_cancelled");
       await audit(tx, {
         shopId: ctx.shopId,
         actorUserId: ctx.userId,

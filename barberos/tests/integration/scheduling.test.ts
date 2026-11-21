@@ -252,3 +252,20 @@ describe("appointments", () => {
     expect(err).toMatch(/permission denied/);
   });
 });
+
+describe("shop deletion (data lifecycle)", () => {
+  it("removes every row belonging to the shop, and nothing else", async () => {
+    const a = await setup();
+    const b = await setup();
+    await book(a.ctx, a.staffId, a.serviceId, "10:00");
+    await book(b.ctx, b.staffId, b.serviceId, "10:00");
+    await adminPool.query("delete from shops where id = $1", [a.shopId]);
+    const tables = ["appointments", "appointment_events", "customers", "services", "staff_members", "staff_services", "working_hours", "shop_memberships", "audit_log"];
+    for (const t of tables) {
+      const { rows } = await adminPool.query(`select count(*)::int as n from ${t} where shop_id = $1`, [a.shopId]);
+      expect([t, rows[0].n]).toEqual([t, 0]);
+      const other = await adminPool.query(`select count(*)::int as n from ${t} where shop_id = $1`, [b.shopId]);
+      expect(other.rows[0].n).toBeGreaterThan(0);
+    }
+  });
+});

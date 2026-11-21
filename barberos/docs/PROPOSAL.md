@@ -410,3 +410,12 @@ The recommended defaults were approved:
 - **Staff bookings outside hours.** Owners and managers can tick "Book outside working hours". The history records that it was outside hours. Barbers can't override.
 - **Reschedule by form, not drag-and-drop.** Drag-to-move on the calendar is deferred. The reschedule form shows the same free times and the same server checks.
 - **Barbers' own hours are read-only** for barbers in the MVP. Owners and managers edit them.
+
+### Phase 3 implementation notes
+
+- **Public access path.** Signed-out pages find the shop through `app_shop_id_by_slug()`, and the customer's booking through `app_appointment_by_manage_token()`. These are narrow `SECURITY DEFINER` lookups that return ids only. Everything after that runs inside that shop's RLS context, through a public domain module that exposes only public data: public services, bookable barbers, free times, and the customer's own booking.
+- **Manage tokens** are 256-bit random values. Only their SHA-256 hash is stored, they work without an account, and GDPR erasure clears them.
+- **Outbox delivery.** Emails are sent with `after()` right after the response. Rows are locked with `FOR UPDATE SKIP LOCKED` so each is sent at most once. Failures back off exponentially (up to 5 attempts), and `/api/cron/outbox` sweeps up retries.
+- **Returning online customers** are matched by phone. Their name and phone on file are never overwritten from the public form, but a missing email is filled in.
+- **Anonymisation keeps the customer row** (as "Deleted customer"), so appointment history and, from Phase 4, financial records stay intact.
+- **Deleting a shop cascades** through every tenant table thanks to the direct `shop_id` foreign keys added in migration 0006. This is the basis for a future self-service "delete my shop" flow with a grace period.

@@ -18,6 +18,7 @@ import { createShop } from "../src/server/domain/shops/service";
 import { createService, listServices } from "../src/server/domain/services/service";
 import { createStaffProfile, listStaff, setStaffServices } from "../src/server/domain/staff/service";
 import { changeAppointmentStatus, createAppointment } from "../src/server/domain/appointments/service";
+import { addCustomerNote } from "../src/server/domain/customers/crm";
 import { DomainError } from "../src/server/errors";
 import { pool } from "../src/server/db/client";
 import type { ActorContext } from "../src/server/domain/context";
@@ -41,6 +42,14 @@ const CUSTOMERS = [
   ["Hugo Ribeiro", "912000111"],
   ["Nuno Carvalho", "912000112"],
 ] as const;
+
+const NOTES = [
+  "Skin fade, #0.5 at the bottom, blended to #3. Scissors on top, 4cm.",
+  "Classic taper, #2 sides, textured crop on top. Likes it matte (clay).",
+  "Beard: shape cheek line low, keep length 1cm. Sensitive skin, no alcohol.",
+  "Mid fade #1, side part on the left, hard part shaved.",
+  "Just a trim, 1cm off everywhere. Talks about football. Benfica!",
+];
 
 const SLOTS = ["09:00", "09:45", "10:30", "11:15", "12:00", "14:00", "14:45", "15:30", "16:15", "17:00", "17:45"];
 
@@ -82,7 +91,8 @@ async function main() {
       openingHours: DEFAULT_OPENING_HOURS,
       ownerIsBarber: true,
     });
-    await admin.query("update shops set is_demo = true, city = 'Lisboa' where id = $1", [shopId]);
+    await admin.query("update shops set is_demo = true, city = 'Lisboa', address_line = 'Rua Demo 1' where id = $1", [shopId]);
+    await admin.query("update shop_settings set online_booking_enabled = true, booking_lead_time_min = 30 where shop_id = $1", [shopId]);
     const { rows: m } = await admin.query("select id from shop_memberships where shop_id = $1 and user_id = $2", [shopId, owner.id]);
     const ctx: ActorContext = { userId: owner.id, shopId, membershipId: m[0].id, role: "owner" };
 
@@ -134,6 +144,11 @@ async function main() {
             if (offset < 0) {
               const to = n % 11 === 0 ? "no_show" : "completed";
               await changeAppointmentStatus(ctx, { appointmentId, to, version: 1 }, new Date());
+              if (to === "completed" && n % 3 === 0) {
+                const { rows: c } = await admin.query("select customer_id from appointments where id = $1", [appointmentId]);
+                const note = NOTES[n % NOTES.length];
+                await addCustomerNote(ctx, c[0].customer_id, { body: note, appointmentId }, st.displayName);
+              }
             }
           } catch (err) {
             // Closed days and overlaps are skipped, exactly as the app would refuse them.

@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireActionContext } from "@/server/tenancy";
 import { runAction, type ActionState } from "@/server/actions";
-import { addClosure, deleteClosure, replaceOpeningHours, updateShopProfile } from "@/server/domain/shops/service";
+import { addClosure, deleteClosure, replaceOpeningHours, updateBookingSettings, updateShopProfile } from "@/server/domain/shops/service";
 import { readJson, readString } from "@/server/form";
 
 export async function updateShopProfileAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
@@ -53,5 +53,25 @@ export async function deleteClosureAction(_prev: ActionState, formData: FormData
     await deleteClosure(ctx, readString(formData, "closureId"));
     revalidatePath("/app", "layout");
     return { status: "success" };
+  });
+}
+
+export async function updateBookingSettingsAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  return runAction(async () => {
+    const ctx = await requireActionContext("shop.update");
+    const brand = readString(formData, "brandColor");
+    await updateBookingSettings(ctx, {
+      onlineBookingEnabled: formData.get("onlineBookingEnabled") === "on",
+      autoConfirmOnline: formData.get("autoConfirmOnline") === "on",
+      requireCustomerEmail: formData.get("requireCustomerEmail") === "on",
+      slotIntervalMin: readString(formData, "slotIntervalMin"),
+      bookingLeadTimeMin: readString(formData, "bookingLeadTimeMin"),
+      bookingHorizonDays: readString(formData, "bookingHorizonDays"),
+      cancellationWindowHours: readString(formData, "cancellationWindowHours"),
+      brandColor: brand && brand !== "default" ? brand : null,
+    });
+    revalidatePath("/app", "layout");
+    revalidatePath("/book", "layout");
+    return { status: "success", message: "Online booking settings saved." };
   });
 }

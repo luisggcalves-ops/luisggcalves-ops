@@ -1,4 +1,3 @@
-import "server-only";
 import { env } from "@/server/env";
 
 export type Email = {

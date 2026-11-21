@@ -160,6 +160,8 @@ export const shopSettings = pgTable("shop_settings", {
   barbersSeeSharedCalendar: boolean().notNull().default(true),
   barbersRecordPayments: boolean().notNull().default(true),
   managersSeeFinance: boolean().notNull().default(true),
+  /** The public booking page only takes bookings once the owner switches it on. */
+  onlineBookingEnabled: boolean().notNull().default(false),
   updatedAt: updatedAt(),
 });
 
@@ -320,7 +322,9 @@ export const services = pgTable(
 export const staffServices = pgTable(
   "staff_services",
   {
-    shopId: uuid().notNull(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
     staffMemberId: uuid().notNull(),
     serviceId: uuid().notNull(),
     priceCentsOverride: integer(),
@@ -344,7 +348,9 @@ export const workingHours = pgTable(
   "working_hours",
   {
     id: id(),
-    shopId: uuid().notNull(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
     staffMemberId: uuid().notNull(),
     weekday: smallint().notNull(),
     startsAt: time().notNull(),
@@ -364,7 +370,9 @@ export const timeOff = pgTable(
   "time_off",
   {
     id: id(),
-    shopId: uuid().notNull(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
     staffMemberId: uuid().notNull(),
     startsAt: timestamp({ withTimezone: true }).notNull(),
     endsAt: timestamp({ withTimezone: true }).notNull(),
@@ -452,7 +460,9 @@ export const appointments = pgTable(
   "appointments",
   {
     id: id(),
-    shopId: uuid().notNull(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
     staffMemberId: uuid().notNull(),
     customerId: uuid().notNull(),
     serviceId: uuid().notNull(),
@@ -509,7 +519,9 @@ export const appointmentEvents = pgTable(
   "appointment_events",
   {
     id: id(),
-    shopId: uuid().notNull(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
     appointmentId: uuid().notNull(),
     type: appointmentEventType().notNull(),
     fromValue: jsonb(),
@@ -523,6 +535,68 @@ export const appointmentEvents = pgTable(
     foreignKey({ columns: [t.shopId, t.appointmentId], foreignColumns: [appointments.shopId, appointments.id] }),
     index().on(t.shopId, t.appointmentId, t.createdAt),
   ],
+);
+
+/* ------------------------------------------------------------------------ */
+/* CRM: haircut and general notes                                            */
+/* ------------------------------------------------------------------------ */
+
+export const customerNoteKind = pgEnum("customer_note_kind", ["haircut", "general"]);
+
+export const customerNotes = pgTable(
+  "customer_notes",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    customerId: uuid().notNull(),
+    appointmentId: uuid(),
+    authorUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    authorName: text().notNull(),
+    kind: customerNoteKind().notNull().default("haircut"),
+    body: text().notNull(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.shopId, t.customerId], foreignColumns: [customers.shopId, customers.id] }),
+    foreignKey({ columns: [t.shopId, t.appointmentId], foreignColumns: [appointments.shopId, appointments.id] }),
+    index().on(t.shopId, t.customerId, t.createdAt),
+    check("customer_notes_body", sql`length(${t.body}) between 1 and 2000`),
+  ],
+);
+
+/* ------------------------------------------------------------------------ */
+/* Notification outbox                                                       */
+/* ------------------------------------------------------------------------ */
+
+export const outboxStatus = pgEnum("outbox_status", ["pending", "sent", "failed", "cancelled"]);
+
+/**
+ * Every outgoing message is written here in the same transaction as the change
+ * that caused it, then delivered (and retried) separately. Reminders and
+ * re-engagement messages will be added as new templates.
+ */
+export const notificationOutbox = pgTable(
+  "notification_outbox",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    channel: text().notNull().default("email"),
+    recipient: text().notNull(),
+    template: text().notNull(),
+    payload: jsonb().notNull(),
+    status: outboxStatus().notNull().default("pending"),
+    scheduledFor: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    attempts: integer().notNull().default(0),
+    lastError: text(),
+    sentAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+  },
+  (t) => [index("outbox_due").on(t.status, t.scheduledFor), index().on(t.shopId, t.createdAt)],
 );
 
 export type MembershipRole = (typeof membershipRole.enumValues)[number];

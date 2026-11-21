@@ -5,6 +5,8 @@ import { requirePageContext } from "@/server/tenancy";
 import { getAppointment, getBookingOptions, listAppointments } from "@/server/domain/appointments/service";
 import { getCalendarContext, type CalendarContext } from "@/server/domain/appointments/calendar";
 import { DomainError } from "@/server/errors";
+import { recentNotes } from "@/server/domain/customers/crm";
+import { can } from "@/server/authz/permissions";
 import {
   addDays,
   addMonths,
@@ -180,16 +182,26 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       );
     } else if (sp.appt) {
       const loaded = await getAppointment(ctx, sp.appt).then(
-        (data) => ({ data, error: null }),
+        async (data) => ({ data, notes: await recentNotes(ctx, data.customer.id, 5), error: null }),
         (err) => {
           if (!(err instanceof DomainError)) throw err;
-          return { data: null, error: err.message };
+          return { data: null, notes: [], error: err.message };
         },
       );
       drawer = (
         <Drawer title="Appointment" closeHref={closeHref}>
           {loaded.data ? (
-            <AppointmentDetails data={loaded.data} timeZone={tz} currency={ctx.shop.currency} staff={options.staff} now={now} />
+            <AppointmentDetails
+              data={loaded.data}
+              timeZone={tz}
+              currency={ctx.shop.currency}
+              staff={options.staff}
+              now={now}
+              notes={loaded.notes}
+              customerHref={`/app/customers/${loaded.data.customer.id}`}
+              userId={ctx.userId}
+              canModerateNotes={can(ctx.role, "customers.edit")}
+            />
           ) : (
             <p className="text-sm text-fg-muted">{loaded.error}</p>
           )}

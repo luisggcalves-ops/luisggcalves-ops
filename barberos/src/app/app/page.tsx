@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowRight, CheckCircle2, Circle, Clock } from "lucide-react";
 import { requirePageContext } from "@/server/tenancy";
-import { getOpeningHours, getShop } from "@/server/domain/shops/service";
+import { getBookingSettings, getOpeningHours, getShop } from "@/server/domain/shops/service";
 import { listTeam } from "@/server/domain/team/service";
 import { listServices } from "@/server/domain/services/service";
 import { listStaff } from "@/server/domain/staff/service";
@@ -30,7 +30,7 @@ export default async function OverviewPage() {
   const tz = ctx.shop.timezone;
   const today = zonedDate(now, tz);
   const weekStart = startOfWeek(today);
-  const [shop, hours, team, services, staff, weekAppts] = await Promise.all([
+  const [shop, hours, team, services, staff, weekAppts, bookingSettings] = await Promise.all([
     getShop(ctx),
     getOpeningHours(ctx),
     listTeam(ctx),
@@ -41,6 +41,7 @@ export default async function OverviewPage() {
       to: zonedTimeToUtc(addDays(weekStart, 7), 0, tz)!,
       includeCancelled: true,
     }),
+    getBookingSettings(ctx),
   ]);
   const todays = weekAppts.filter((a) => zonedDate(a.startsAt, tz) === today);
   const booked = (list: typeof weekAppts) => list.filter((a) => a.status !== "cancelled");
@@ -69,7 +70,7 @@ export default async function OverviewPage() {
       href: "/app/staff",
     },
     { label: "Add your services and prices", done: services.length > 0, href: "/app/settings/services" },
-    { label: "Open online booking", done: false, soon: true },
+    { label: "Open online booking", done: bookingSettings.onlineBookingEnabled, href: "/app/settings/booking" },
   ];
   const completed = checklist.filter((c) => c.done).length;
 

@@ -160,3 +160,27 @@ export const notesSchema = z.object({
   appointmentId: z.uuid(),
   internalNote: optionalText(1000),
 });
+
+export const customerUpdateSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter the customer's name").max(80),
+  phone: z.string().trim().max(40).nullish().transform((v) => v ?? ""),
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .pipe(z.union([z.literal(""), z.email("Enter a valid email")]))
+    .nullish()
+    .transform((v) => (v ? v : null)),
+  preferredStaffMemberId: z
+    .union([z.literal(""), z.uuid()])
+    .nullish()
+    .transform((v) => (v ? v : null)),
+  hairPreferences: optionalText(1000),
+  marketingConsent: z.boolean().default(false),
+});
+
+export const customerNoteSchema = z.object({
+  body: z.string().trim().min(1, "Write a note").max(2000),
+  kind: z.enum(["haircut", "general"]).default("haircut"),
+  appointmentId: z.uuid().nullish(),
+});

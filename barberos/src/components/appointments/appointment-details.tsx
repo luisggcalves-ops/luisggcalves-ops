@@ -6,7 +6,9 @@ import { formatMoney } from "@/lib/money";
 import { formatPhone } from "@/lib/phone";
 import { StatusBadge, STATUS_LABEL } from "./status-badge";
 import { NotesForm, RescheduleForm, StatusActions } from "./appointment-actions";
-import type { AppointmentStatus } from "@/server/db/schema";
+import type { AppointmentStatus, customerNotes } from "@/server/db/schema";
+import Link from "next/link";
+import { AddNoteForm, NotesTimeline } from "@/components/customers/notes";
 
 type Details = Awaited<ReturnType<typeof getAppointment>>;
 
@@ -35,12 +37,20 @@ export function AppointmentDetails({
   currency,
   staff,
   now,
+  notes,
+  customerHref,
+  userId,
+  canModerateNotes,
 }: {
   data: Details;
   timeZone: string;
   currency: string;
   staff: { id: string; displayName: string }[];
   now: Date;
+  notes: (typeof customerNotes.$inferSelect)[];
+  customerHref: string;
+  userId: string;
+  canModerateNotes: boolean;
 }) {
   const a = data.appointment;
   const date = zonedDate(a.startsAt, timeZone);
@@ -111,6 +121,22 @@ export function AppointmentDetails({
           defaults={{ staffMemberId: a.staffMemberId, date, time: formatClock(a.startsAt, timeZone) }}
         />
       ) : null}
+
+      <div className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-[13px] font-medium">Haircut notes</h3>
+          <Link href={customerHref} className="text-[12px] text-fg-muted hover:text-fg">
+            Customer profile →
+          </Link>
+        </div>
+        <NotesTimeline
+          notes={notes}
+          timeZone={timeZone}
+          canDelete={(n) => canModerateNotes || n.authorUserId === userId}
+          empty="No notes yet. After the cut, note what you did."
+        />
+        <AddNoteForm customerId={data.customer.id} appointmentId={a.id} />
+      </div>
 
       <NotesForm appointmentId={a.id} note={a.internalNote ?? ""} />
 

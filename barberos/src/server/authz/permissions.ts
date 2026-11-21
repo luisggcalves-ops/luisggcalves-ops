@@ -23,6 +23,10 @@ export const PERMISSIONS = [
   "appointments.manage", // create/edit/cancel anyone's appointments
   "appointments.manage_own", // a barber's own appointments
   "customers.search", // find or add a customer while booking
+  "customers.view_all", // every customer (barbers see only their own customers)
+  "customers.edit", // contact details and preferences
+  "customers.export", // GDPR data export
+  "customers.delete", // GDPR erasure (anonymization)
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -44,6 +48,9 @@ const ROLE_PERMISSIONS: Record<MembershipRole, readonly Permission[]> = {
     "appointments.manage",
     "appointments.manage_own",
     "customers.search",
+    "customers.view_all",
+    "customers.edit",
+    "customers.export",
   ],
   barber: ["shop.view", "barber_app.view", "appointments.manage_own", "customers.search"],
 };

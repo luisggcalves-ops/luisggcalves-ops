@@ -8,7 +8,7 @@ BarberOS is a management platform for independent barbershops with 2–5 barbers
 |---|---|---|
 | Owner dashboard | `/app` | Owners and managers (desktop/tablet) |
 | Barber app | `/barber` | Barbers (mobile-first) |
-| Public booking | `/book/{shop}` | Customers (no account) *(Phase 3)* |
+| Public booking | `/book/{shop}` | Customers (no account) |
 
 The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPOSAL.md).
 
@@ -18,11 +18,47 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
 |---|---|---|
 | 1 | Project setup, database, auth, shop creation, roles | ✅ Done |
 | 2 | Staff profiles & hours, services, availability, appointment calendar | ✅ Done |
-| 3 | Public booking, customer profiles, haircut notes | Next |
-| 4 | Payments, revenue, commissions | Planned |
+| 3 | Public booking, customer profiles, haircut notes, GDPR | ✅ Done |
+| 4 | Payments, revenue, commissions | Next |
 | 5 | Hardening, mobile polish, security review | Planned |
 
 ### What works today
+
+#### Phase 3: online booking and customers
+
+- **Public booking page** at `/book/{shop}`. It's mobile-first and customers don't need an account.
+  - Steps: service, then barber (or **any barber**), then a 14-day date strip with only real free times, then the customer's details, then confirmation.
+  - "Any barber" bookings go to whoever has the fewest appointments that day.
+  - The shop's address, phone and opening hours are shown. The shop can pick an accent colour.
+  - Spam protection: a hidden honeypot field plus per-IP rate limits on booking and managing.
+- **Online booking settings** (Settings → Online booking):
+  - An on/off switch (closed by default).
+  - Minimum notice, how far ahead customers can book, cancellation window, and slot interval.
+  - Auto-confirm, or hold bookings as *pending* for review.
+  - Whether email is required. Phone is always required.
+- **Manage my booking:** after booking, the customer gets a private link (also emailed). From there they can:
+  - see the booking;
+  - add it to their calendar (`.ics`);
+  - change the date or time, or cancel, until the cancellation window, after which they're asked to call.
+  - Bookings made and changed online land in the shop's calendar immediately, and the history shows "customer" as the actor.
+- **Emails through an outbox:**
+  - Confirmation, rescheduled and cancelled emails are written in the same transaction as the change, then sent right after the response.
+  - Failed sends are retried with backoff by `/api/cron/outbox`.
+  - Customers are also emailed when staff cancel or move their booking.
+  - Reminders and re-engagement will be new templates on the same queue.
+- **Customers (CRM):**
+  - Searchable list with visits, last visit and next booking.
+  - Profile with contact details, standing hair preferences, preferred barber, marketing consent, stats (visits, upcoming, no-shows, average days between visits) and full appointment history.
+- **Haircut notes:**
+  - A timeline on the customer profile, also shown inside every appointment panel, so the barber sees how the customer had it last time.
+  - Barbers can add notes and delete their own. Owners and managers can delete any.
+- **Barber Customers tab:** barbers see only the customers they've served or are booked with.
+- **GDPR:**
+  - **Export** a customer's data as JSON (owners and managers).
+  - **Delete** a customer's personal data (owner only). This anonymises them: name, contact details and notes are wiped, future bookings are cancelled, and past visit counts are kept without identifying anyone.
+  - Both actions are audited.
+  - The booking page has a privacy page.
+- **Deleting a shop removes all of its data.** Every tenant table has a direct `shop_id` foreign key with cascade.
 
 #### Phase 2: scheduling
 
@@ -63,8 +99,6 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
   - Barbers only ever see their own appointments.
 - **Overview:** today's and this week's appointment counts, cancellations and no-shows, the next appointments, and a setup checklist.
 
-> A minimal customer record (name, phone, email, visit count) arrived in Phase 2 because every appointment needs a customer. Full customer profiles, haircut notes and the GDPR export/delete screens come in Phase 3.
-
 #### Phase 1: foundation
 
 - Sign up, sign in, sign out, forgot/reset password, change password, edit name.
@@ -73,7 +107,7 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
 - Team management: email invitations with copyable one-time links (7-day expiry), roles (owner / manager / barber), role changes, deactivate/reactivate, and pending-invite cancellation.
 - Barber mobile app: Today and Profile tabs, plus shop switching for people in several shops.
 - Role-based routing: barbers are sent to `/barber` and can't open the owner dashboard.
-- Unbuilt sections (Customers, Finance, Inventory, Reports, and the barber Customers and Earnings tabs) are shown as **"Soon"** and are not clickable. There are no dead buttons.
+- Unbuilt sections (Finance, Inventory, Reports, and the barber Earnings tab) are shown as **"Soon"** and are not clickable. There are no dead buttons.
 
 ## Tech stack
 
@@ -129,10 +163,10 @@ Open http://localhost:3000 and sign in with a demo account (password `barberos-d
 
 | Account | What you'll see |
 |---|---|
-| `owner@demo.barberos.test` | Owner dashboard with 3 barbers, 5 services and a week of bookings |
+| `owner@demo.barberos.test` | Owner dashboard with 3 barbers, 5 services, a week of bookings and haircut notes |
 | `barber@demo.barberos.test` | The barber phone app (open it in your browser's phone view) |
 
-The demo shop is flagged as demo data and shows a banner on every screen. You can also create your own shop with **Get started**. Without `RESEND_API_KEY`, emails (password resets, invites) are printed in the server console.
+The demo shop's public booking page is open too. The link is under Settings → Online booking. The demo shop is flagged as demo data and shows a banner on every screen. You can also create your own shop with **Get started**. Without `RESEND_API_KEY`, emails (password resets, invites) are printed in the server console.
 
 ## Scripts
 
@@ -180,5 +214,6 @@ Recommended: **Vercel + Neon**, both in an EU region.
    ```
 
 3. Use that login role in `DATABASE_URL`.
-4. Set `BETTER_AUTH_URL` to the public URL. Set `RESEND_API_KEY` and `MAIL_FROM` for real email.
-5. Run `npm run db:migrate` before each deploy.
+4. Set `BETTER_AUTH_URL` to the public URL. Set `RESEND_API_KEY` and `MAIL_FROM` for real email, and set `CRON_SECRET`.
+5. Schedule `GET /api/cron/outbox` every few minutes with `Authorization: Bearer $CRON_SECRET` to retry failed emails. Vercel Cron or any external scheduler works.
+6. Run `npm run db:migrate` before each deploy.

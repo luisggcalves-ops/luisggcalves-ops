@@ -10,6 +10,7 @@ export default function SettingsLayout({ children }: { children: React.ReactNode
           { href: "/app/settings", label: "Shop profile" },
           { href: "/app/settings/services", label: "Services" },
           { href: "/app/settings/hours", label: "Opening hours" },
+          { href: "/app/settings/booking", label: "Online booking" },
           { href: "/app/settings/account", label: "Account" },
         ]}
       />

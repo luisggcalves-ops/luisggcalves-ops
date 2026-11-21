@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* BarberOS design tokens: monochrome, with one muted colour per semantic state. */
+:root {
+  --bg: #f6f6f7;
+  --surface: #ffffff;
+  --surface-muted: #f1f1f3;
+  --border: #e6e6e9;
+  --border-strong: #d2d2d7;
+  --fg: #0a0a0b;
+  --fg-muted: #61616b;
+  --fg-subtle: #94949c;
+  --primary: #0a0a0b;
+  --primary-hover: #26262b;
+  --primary-fg: #ffffff;
+  --ring: #0a0a0b;
+  --success: #1d6b45;
+  --success-bg: #e8f3ec;
+  --warning: #8a5300;
+  --warning-bg: #fbf1e1;
+  --danger: #b42318;
+  --danger-bg: #fdecea;
+  --shadow-sm: 0 1px 2px rgb(10 10 11 / 0.04);
+  --shadow-md: 0 1px 2px rgb(10 10 11 / 0.04), 0 8px 24px -12px rgb(10 10 11 / 0.12);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0b0c;
+    --surface: #141416;
+    --surface-muted: #1b1b1e;
+    --border: #26262b;
+    --border-strong: #35353b;
+    --fg: #f4f4f5;
+    --fg-muted: #a1a1aa;
+    --fg-subtle: #71717a;
+    --primary: #f4f4f5;
+    --primary-hover: #dcdce0;
+    --primary-fg: #0a0a0b;
+    --ring: #f4f4f5;
+    --success: #5cc48d;
+    --success-bg: #12291d;
+    --warning: #e3a64a;
+    --warning-bg: #2b2010;
+    --danger: #f2786d;
+    --danger-bg: #2e1513;
+    --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.4);
+    --shadow-md: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 24px -12px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-fg-subtle: var(--fg-subtle);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-fg: var(--primary-fg);
+  --color-ring: var(--ring);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --shadow-card: var(--shadow-sm);
+  --shadow-pop: var(--shadow-md);
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-feature-settings: "ss01", "cv11";
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-in {
+  animation: fade-in 180ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -2,7 +2,7 @@
 
 > **Everything your barbershop needs, in one place.**
 >
-> Status: **proposal for review**. Nothing gets built until this is approved.
+> Status: **approved with the recommended defaults** (see §10). Phase 1 is implemented, see [`../README.md`](../README.md).
 > Scope: architecture, database schema, screen structure, business rules, and the delivery plan for the MVP (Phases 1–5).
 
 ---
@@ -96,7 +96,8 @@ barberos/
 
 1. **Application.** Every query goes through `withShopTx`, and domain services take `ShopContext`, never a raw `shopId` from input.
 2. **Schema.** Every tenant table has `shop_id NOT NULL`. Cross-table references use **composite foreign keys `(shop_id, id)`**, so an appointment physically cannot point to another shop's customer or barber.
-3. **Database.** **Row-Level Security** is enabled and forced on every tenant table, with policy `shop_id = current_setting('app.shop_id')::uuid`. The app connects as a non-owner role, so even a bug that skips layer 1 returns zero rows.
+3. **Database.** **Row-Level Security** is enabled on every tenant table, with policy `shop_id = current_setting('app.shop_id')::uuid`. The app connects as a non-owner role, so even a bug that skips layer 1 returns zero rows.
+   - *Implementation note:* RLS is enabled but not `FORCE`d. Forcing it would also restrict the owner role, and only migrations use that role. The app role never owns tables, so RLS always applies to it. Integration tests prove this.
 
 The public booking surface uses a narrow set of read endpoints that expose only public shop data (services, prices, barber display names, free slots). It never exposes customer data.
 
@@ -383,12 +384,19 @@ Each phase ends with a working, deployable increment and a short changelog. I wo
 
 ---
 
-## 10. Decisions needed from you
+## 10. Decisions (resolved)
 
-1. **Where the code lives.** This repository is your GitHub profile repo (with LiftLog deployed via GitHub Pages). BarberOS needs a server and a database, so it can't run on GitHub Pages.
-   - **Recommended:** create a dedicated repo (e.g. `barberos`) and attach it to the session.
-   - Alternative: build in `barberos/` inside this repo for now and move it later.
-2. **Hosting.** Recommended: Vercel + Neon (EU). Alternatives: Supabase (as Postgres host), Railway/Render, or a self-managed VPS. Development works locally regardless. Accounts are only needed when we deploy.
-3. **Market defaults.** Currency, timezone and UI language for the first pilot shops (e.g. EUR / Europe/Lisbon / Portuguese vs English). The app is built i18n-ready either way. The question is which language ships first.
-4. **Booking details.** Is email required at booking, or phone only? Should online bookings auto-confirm (recommended) or require approval?
-5. **Multi-service appointments** (e.g. cut + beard as two items) in the MVP, or combo services for now (recommended)?
+The recommended defaults were approved:
+
+1. **Where the code lives:** a dedicated `barberos` repository.
+   - That repository doesn't exist yet, so Phase 1 is built in `barberos/` inside the profile repository and kept out of its GitHub Pages build.
+   - Moving it later preserves history: `git subtree split --prefix=barberos`.
+2. **Hosting:** Vercel + Neon in an EU region, set up when we deploy.
+3. **Market defaults:** EUR, `Europe/Lisbon` and English UI. Currency and time zone can be changed per shop, and the UI is ready for translation.
+4. **Booking details:** phone required, email optional (`shop_settings.require_customer_email`). Online bookings auto-confirm (`shop_settings.auto_confirm_online`).
+5. **Cut + beard:** combo services in the MVP, with `appointment_services` as the later extension.
+
+### Phase 1 implementation notes
+
+- Phase 1 sends transactional email (password reset, invitations) directly through the `sendEmail` adapter. The `notification_outbox` table arrives with booking confirmations in Phase 3.
+- Invitations show the owner a copyable one-time link as well as sending the email, because many shops share links over WhatsApp.

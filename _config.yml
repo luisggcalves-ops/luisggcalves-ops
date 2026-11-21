@@ -1,0 +1,4 @@
+# GitHub Pages (Jekyll) serves the LiftLog app from the repository root.
+# BarberOS is a server application with its own deployment, so keep it out of the Pages build.
+exclude:
+  - barberos

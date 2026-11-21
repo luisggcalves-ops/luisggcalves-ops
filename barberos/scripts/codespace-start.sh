@@ -11,7 +11,7 @@ fi
 if [ ! -d .next ]; then npm run build; fi
 
 if ! (echo > /dev/tcp/127.0.0.1/3000) 2>/dev/null; then
-  nohup npx next start -p 3000 > /tmp/barberos.log 2>&1 &
+  SHOW_DEMO_LOGINS=1 nohup npx next start -p 3000 > /tmp/barberos.log 2>&1 &
   sleep 3
 fi
 

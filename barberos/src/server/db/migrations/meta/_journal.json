@@ -15,6 +15,20 @@
       "when": 1795281103805,
       "tag": "0001_tenant_security",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1795292589189,
+      "tag": "0002_scheduling",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1795292589738,
+      "tag": "0003_scheduling_security",
+      "breakpoints": true
     }
   ]
 }

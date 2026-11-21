@@ -14,7 +14,7 @@ export function OpeningHoursForm({ hours, timezone }: { hours: OpeningInterval[]
       <Card>
         <CardHeader
           title="Opening hours"
-          description={`When customers can visit. Times are in ${timezone.replaceAll("_", " ")}. Use “Split” for a lunch break.`}
+          description={`When customers can visit. Times are in ${timezone.replaceAll("_", " ")}. Use + to add a lunch break.`}
         />
         <CardBody>
           <OpeningHoursEditor name="openingHours" defaultValue={hours} />

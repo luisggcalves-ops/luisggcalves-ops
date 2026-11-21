@@ -88,3 +88,101 @@ export function openStatus(
   }
   return { open: false, label: "No opening hours set" };
 }
+
+/* ------------------------------------------------------------------------ */
+/* Calendar dates ("YYYY-MM-DD") and wall-clock ↔ instant conversion         */
+/* ------------------------------------------------------------------------ */
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isDateString(value: unknown): value is string {
+  if (typeof value !== "string" || !DATE_RE.test(value)) return false;
+  const [y, m, d] = value.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+function dateToUtcMs(date: string): number {
+  const [y, m, d] = date.split("-").map(Number);
+  return Date.UTC(y, m - 1, d);
+}
+
+function utcMsToDate(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+export function addDays(date: string, days: number): string {
+  return utcMsToDate(dateToUtcMs(date) + days * 86_400_000);
+}
+
+/** 0 = Sunday … 6 = Saturday, for a calendar date (independent of any time zone). */
+export function weekdayOf(date: string): number {
+  return new Date(dateToUtcMs(date)).getUTCDay();
+}
+
+/** Monday of the week containing `date`. */
+export function startOfWeek(date: string): string {
+  return addDays(date, -((weekdayOf(date) + 6) % 7));
+}
+
+export function startOfMonth(date: string): string {
+  return `${date.slice(0, 7)}-01`;
+}
+
+export function addMonths(date: string, months: number): string {
+  const [y, m] = date.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1 + months, 1));
+  return utcMsToDate(dt.getTime());
+}
+
+/** Wall-clock parts of an instant in a time zone. */
+export function zonedParts(at: Date, timeZone: string): { date: string; minutes: number; weekday: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(at);
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  const date = `${get("year")}-${get("month")}-${get("day")}`;
+  return { date, minutes: Number(get("hour")) * 60 + Number(get("minute")), weekday: weekdayOf(date) };
+}
+
+/** The calendar date of `at` in the shop's time zone. */
+export function zonedDate(at: Date, timeZone: string): string {
+  return zonedParts(at, timeZone).date;
+}
+
+function offsetMs(atMs: number, timeZone: string): number {
+  const { date, minutes } = zonedParts(new Date(atMs), timeZone);
+  const seconds = new Date(atMs).getUTCSeconds() * 1000 + new Date(atMs).getUTCMilliseconds();
+  return dateToUtcMs(date) + minutes * 60_000 + seconds - atMs;
+}
+
+/**
+ * The instant at which the wall clock in `timeZone` shows `date` + `minutes`.
+ * Returns null for wall times that don't exist (the gap when clocks spring forward).
+ */
+export function zonedTimeToUtc(date: string, minutes: number, timeZone: string): Date | null {
+  const wall = dateToUtcMs(date) + minutes * 60_000;
+  let guess = wall - offsetMs(wall, timeZone);
+  guess = wall - offsetMs(guess, timeZone);
+  const check = zonedParts(new Date(guess), timeZone);
+  if (check.date !== date || check.minutes !== ((minutes % 1440) + 1440) % 1440) {
+    // `minutes` may be 1440 (midnight at the end of the day), which is the next date.
+    if (!(minutes === 1440 && check.date === addDays(date, 1) && check.minutes === 0)) return null;
+  }
+  return new Date(guess);
+}
+
+/** "HH:MM" for an instant, in the shop's time zone. */
+export function formatClock(at: Date, timeZone: string): string {
+  return minutesToTime(zonedParts(at, timeZone).minutes);
+}
+
+export function formatDateLabel(date: string, opts: Intl.DateTimeFormatOptions = { weekday: "long", day: "numeric", month: "long" }) {
+  return new Intl.DateTimeFormat("en-GB", { ...opts, timeZone: "UTC" }).format(new Date(dateToUtcMs(date)));
+}

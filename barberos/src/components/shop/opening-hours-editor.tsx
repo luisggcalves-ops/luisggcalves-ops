@@ -56,7 +56,7 @@ export function OpeningHoursEditor({ name, defaultValue }: { name: string; defau
         const err = dayError(day);
         return (
           <div key={wd} className="flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-start">
-            <label className="flex w-36 shrink-0 cursor-pointer items-center gap-3 pt-1.5 text-sm font-medium">
+            <label className="flex w-32 shrink-0 cursor-pointer items-center gap-3 pt-1.5 text-sm font-medium">
               <span
                 className={cn(
                   "relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors",
@@ -94,7 +94,7 @@ export function OpeningHoursEditor({ name, defaultValue }: { name: string; defau
                           intervals: d.intervals.map((x, i) => (i === idx ? { ...x, opensAt: e.target.value } : x)),
                         }))
                       }
-                      className="h-9 w-28 rounded-lg border border-border-strong bg-surface px-2 text-sm tabular focus:border-fg focus:outline-none"
+                      className="h-9 w-[104px] rounded-lg border border-border-strong bg-surface px-2 text-sm tabular focus:border-fg focus:outline-none"
                     />
                     <span className="text-fg-subtle">–</span>
                     <input
@@ -108,7 +108,7 @@ export function OpeningHoursEditor({ name, defaultValue }: { name: string; defau
                           intervals: d.intervals.map((x, i) => (i === idx ? { ...x, closesAt: e.target.value } : x)),
                         }))
                       }
-                      className="h-9 w-28 rounded-lg border border-border-strong bg-surface px-2 text-sm tabular focus:border-fg focus:outline-none"
+                      className="h-9 w-[104px] rounded-lg border border-border-strong bg-surface px-2 text-sm tabular focus:border-fg focus:outline-none"
                     />
                     {day.intervals.length > 1 ? (
                       <button
@@ -134,9 +134,11 @@ export function OpeningHoursEditor({ name, defaultValue }: { name: string; defau
                             };
                           })
                         }
-                        className="inline-flex h-8 items-center gap-1 rounded-lg px-2 text-[13px] text-fg-muted hover:bg-surface-muted hover:text-fg"
+                        className="grid size-8 place-items-center rounded-lg text-fg-muted hover:bg-surface-muted hover:text-fg"
+                        aria-label={`Add a break on ${long}`}
+                        title="Split the day (e.g. a lunch break)"
                       >
-                        <Plus className="size-3.5" /> Split
+                        <Plus className="size-4" />
                       </button>
                     ) : null}
                   </div>

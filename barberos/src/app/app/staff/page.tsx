@@ -6,7 +6,12 @@ import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { ActionButton } from "@/components/ui/action-button";
+import Link from "next/link";
+import { ChevronRight } from "lucide-react";
+import { listStaff } from "@/server/domain/staff/service";
+import { colorHex } from "@/lib/calendar-colors";
 import { InviteForm } from "./invite-form";
+import { AddBarberForm } from "./add-barber-form";
 import { RoleForm } from "./role-form";
 import { revokeInviteAction, setMemberActiveAction } from "./actions";
 
@@ -16,16 +21,49 @@ const dateFmt = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short
 
 export default async function StaffPage() {
   const ctx = await requirePageContext("team.view");
-  const team = await listTeam(ctx);
+  const [team, barbers] = await Promise.all([listTeam(ctx), listStaff(ctx, { includeInactive: true })]);
+  const membersWithoutProfile = team.members
+    .filter((m) => m.status === "active" && !m.staffMemberId)
+    .map((m) => ({ membershipId: m.membershipId, name: m.name }));
   const roleOptions = assignableRoles(ctx.role).map((r) => ({ value: r, label: ROLE_LABELS[r] }));
   const canInvite = can(ctx.role, "team.invite");
   const canManage = can(ctx.role, "team.manage");
 
   return (
     <>
-      <PageHeader title="Staff" description="Everyone who can sign in to your shop, and what they can access." />
+      <PageHeader title="Staff" description="Your barbers' schedules and services, and who can sign in to your shop." />
 
       <div className="flex flex-col gap-6">
+        <Card>
+          <CardHeader title="Barbers" description="Everyone who takes appointments. Open a barber to set their hours, services and time off." />
+          {barbers.length ? (
+            <ul className="divide-y divide-border">
+              {barbers.map((b) => (
+                <li key={b.id}>
+                  <Link href={`/app/staff/${b.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-surface-muted/60">
+                    <span className="size-2.5 shrink-0 rounded-full" style={{ background: colorHex(b.calendarColor) }} aria-hidden />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-medium">{b.displayName}</span>
+                      <span className="block truncate text-[12px] text-fg-muted">
+                        {b.serviceCount} service{b.serviceCount === 1 ? "" : "s"} · {b.email ?? "No login"}
+                      </span>
+                    </span>
+                    {!b.isActive ? <Badge>Inactive</Badge> : !b.isBookable ? <Badge>Not bookable</Badge> : null}
+                    <ChevronRight className="size-4 text-fg-subtle" aria-hidden />
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="px-5 py-6 text-center text-sm text-fg-muted">No barbers yet.</p>
+          )}
+          {can(ctx.role, "staff.manage") ? (
+            <CardBody className="border-t border-border">
+              <AddBarberForm members={membersWithoutProfile} />
+            </CardBody>
+          ) : null}
+        </Card>
+
         {canInvite ? (
           <Card>
             <CardHeader
@@ -39,7 +77,7 @@ export default async function StaffPage() {
         ) : null}
 
         <Card>
-          <CardHeader title="Team" description={`${team.members.length} ${team.members.length === 1 ? "person" : "people"}`} />
+          <CardHeader title="Team access" description={`${team.members.length} ${team.members.length === 1 ? "person" : "people"}`} />
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
               <thead>

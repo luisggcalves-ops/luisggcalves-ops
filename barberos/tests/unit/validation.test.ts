@@ -67,3 +67,30 @@ describe("safeNext", () => {
     expect(safeNext(null)).toBe("/start");
   });
 });
+
+import { formatMoney, parseMoneyToCents } from "@/lib/money";
+import { normalizePhone } from "@/lib/phone";
+
+describe("money", () => {
+  it("parses common price formats into cents", () => {
+    expect(parseMoneyToCents("25")).toBe(2500);
+    expect(parseMoneyToCents("25.5")).toBe(2550);
+    expect(parseMoneyToCents("25,50")).toBe(2550);
+    expect(parseMoneyToCents("€ 1.234,50")).toBe(123450);
+    expect(parseMoneyToCents("1,234.50")).toBe(123450);
+    expect(parseMoneyToCents("-5")).toBeNull();
+    expect(parseMoneyToCents("abc")).toBeNull();
+  });
+  it("formats with the shop currency", () => {
+    expect(formatMoney(2500, "EUR")).toBe("€25");
+    expect(formatMoney(2550, "EUR")).toBe("€25.50");
+  });
+});
+
+describe("phone", () => {
+  it("normalizes to E.164 using the shop's country", () => {
+    expect(normalizePhone("912 345 678", "PT")).toBe("+351912345678");
+    expect(normalizePhone("+44 7911 123456", "PT")).toBe("+447911123456");
+    expect(normalizePhone("123", "PT")).toBeNull();
+  });
+});

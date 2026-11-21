@@ -4,6 +4,11 @@ import { ArrowRight, CheckCircle2, Circle, Clock } from "lucide-react";
 import { requirePageContext } from "@/server/tenancy";
 import { getOpeningHours, getShop } from "@/server/domain/shops/service";
 import { listTeam } from "@/server/domain/team/service";
+import { listServices } from "@/server/domain/services/service";
+import { listStaff } from "@/server/domain/staff/service";
+import { listAppointments } from "@/server/domain/appointments/service";
+import { AgendaList } from "@/components/appointments/agenda-list";
+import { addDays, startOfWeek, zonedDate, zonedTimeToUtc } from "@/lib/time";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
@@ -21,9 +26,27 @@ function greeting(minutes: number) {
 
 export default async function OverviewPage() {
   const ctx = await requirePageContext("dashboard.view");
-  const [shop, hours, team] = await Promise.all([getShop(ctx), getOpeningHours(ctx), listTeam(ctx)]);
-
   const now = new Date();
+  const tz = ctx.shop.timezone;
+  const today = zonedDate(now, tz);
+  const weekStart = startOfWeek(today);
+  const [shop, hours, team, services, staff, weekAppts] = await Promise.all([
+    getShop(ctx),
+    getOpeningHours(ctx),
+    listTeam(ctx),
+    listServices(ctx),
+    listStaff(ctx),
+    listAppointments(ctx, {
+      from: zonedTimeToUtc(weekStart, 0, tz)!,
+      to: zonedTimeToUtc(addDays(weekStart, 7), 0, tz)!,
+      includeCancelled: true,
+    }),
+  ]);
+  const todays = weekAppts.filter((a) => zonedDate(a.startsAt, tz) === today);
+  const booked = (list: typeof weekAppts) => list.filter((a) => a.status !== "cancelled");
+  const upcoming = todays.filter((a) => (a.status === "confirmed" || a.status === "pending") && a.endsAt > now);
+  const cancelledThisWeek = weekAppts.filter((a) => a.status === "cancelled" || a.status === "no_show");
+
   const { weekday, minutes } = zonedNow(shop.timezone, now);
   const status = openStatus(hours, shop.timezone, now);
   const todayHours = hours.filter((h) => h.weekday === weekday);
@@ -34,17 +57,18 @@ export default async function OverviewPage() {
     month: "long",
   }).format(now);
   const activeMembers = team.members.filter((m) => m.status === "active");
-  const bookableBarbers = team.members.filter((m) => m.status === "active" && m.staffMemberId);
+  // Barber profiles, including barbers who don't sign in.
+  const bookableBarbers = staff;
 
   const checklist = [
     { label: "Create your shop", done: true, href: "/app/settings" },
     { label: "Set your opening hours", done: hours.length > 0, href: "/app/settings/hours" },
     {
-      label: "Invite your barbers",
-      done: activeMembers.length > 1 || team.pending.length > 0,
+      label: "Add your barbers",
+      done: activeMembers.length > 1 || team.pending.length > 0 || staff.length > 1,
       href: "/app/staff",
     },
-    { label: "Add your services and prices", done: false, soon: true },
+    { label: "Add your services and prices", done: services.length > 0, href: "/app/settings/services" },
     { label: "Open online booking", done: false, soon: true },
   ];
   const completed = checklist.filter((c) => c.done).length;
@@ -56,43 +80,44 @@ export default async function OverviewPage() {
         description={`${dateLabel} · ${shop.name}`}
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Kpi label="Today" value={String(booked(todays).length)} sub={`${todays.filter((a) => a.status === "completed").length} completed · ${upcoming.length} to go`} />
+        <Kpi label="This week" value={String(booked(weekAppts).length)} sub={`${cancelledThisWeek.length} cancelled or no-show`} />
         <Card>
           <CardBody>
             <p className="text-[13px] text-fg-muted">Shop status</p>
             <div className="mt-2 flex items-center gap-2">
               <span className={cn("size-2 rounded-full", status.open ? "bg-success" : "bg-fg-subtle")} aria-hidden />
-              <p className="text-lg font-semibold tracking-tight">{status.open ? "Open" : "Closed"}</p>
+              <p className="text-2xl font-semibold tracking-tight">{status.open ? "Open" : "Closed"}</p>
             </div>
-            <p className="mt-1 text-[13px] text-fg-muted">{status.label}</p>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-[13px] text-fg-muted">Today&apos;s hours</p>
-            <p className="mt-2 text-lg font-semibold tracking-tight tabular">
-              {todayHours.length
-                ? todayHours.map((h) => `${shortTime(h.opensAt)}–${shortTime(h.closesAt)}`).join(", ")
-                : "Closed today"}
-            </p>
-            <Link href="/app/settings/hours" className="mt-1 inline-flex items-center gap-1 text-[13px] text-fg-muted hover:text-fg">
-              Edit hours <ArrowRight className="size-3" />
-            </Link>
-          </CardBody>
-        </Card>
-        <Card>
-          <CardBody>
-            <p className="text-[13px] text-fg-muted">Team</p>
-            <p className="mt-2 text-lg font-semibold tracking-tight tabular">
-              {activeMembers.length} {activeMembers.length === 1 ? "member" : "members"}
-            </p>
-            <p className="mt-1 text-[13px] text-fg-muted">
-              {bookableBarbers.length} with a barber profile
-              {team.pending.length ? ` · ${team.pending.length} invite${team.pending.length > 1 ? "s" : ""} pending` : ""}
+            <p className="mt-1 truncate text-[13px] text-fg-muted tabular">
+              {todayHours.length ? todayHours.map((h) => `${shortTime(h.opensAt)}–${shortTime(h.closesAt)}`).join(", ") : status.label}
             </p>
           </CardBody>
         </Card>
+        <Kpi
+          label="Team"
+          value={String(bookableBarbers.length)}
+          sub={`barber${bookableBarbers.length === 1 ? "" : "s"}${team.pending.length ? ` · ${team.pending.length} invite${team.pending.length > 1 ? "s" : ""} pending` : ""}`}
+        />
       </div>
+
+      <Card className="mt-6">
+        <CardHeader
+          title="Up next today"
+          description={upcoming.length ? undefined : "Nothing else booked for today."}
+          action={
+            <Link href="/app/appointments" className="inline-flex items-center gap-1 text-[13px] text-fg-muted hover:text-fg">
+              Open calendar <ArrowRight className="size-3" />
+            </Link>
+          }
+        />
+        {upcoming.length ? (
+          <CardBody>
+            <AgendaList items={upcoming.slice(0, 6)} timeZone={tz} hrefFor={(id) => `/app/appointments?appt=${id}`} highlightId={upcoming[0]?.id} />
+          </CardBody>
+        ) : null}
+      </Card>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         <Card>
@@ -174,9 +199,19 @@ export default async function OverviewPage() {
         </Card>
       </div>
 
-      <p className="mt-8 text-[13px] text-fg-subtle">
-        Appointments, revenue and customer insights will appear here once the calendar and booking modules are live.
-      </p>
+      <p className="mt-8 text-[13px] text-fg-subtle">Revenue and commission figures arrive with payments in the next release.</p>
     </>
+  );
+}
+
+function Kpi({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <Card>
+      <CardBody>
+        <p className="text-[13px] text-fg-muted">{label}</p>
+        <p className="mt-2 text-2xl font-semibold tracking-tight tabular">{value}</p>
+        <p className="mt-1 truncate text-[13px] text-fg-muted">{sub}</p>
+      </CardBody>
+    </Card>
   );
 }

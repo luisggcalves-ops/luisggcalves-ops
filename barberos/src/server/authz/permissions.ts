@@ -16,6 +16,13 @@ export const PERMISSIONS = [
   "dashboard.view", // owner/manager dashboard
   "barber_app.view",
   "audit.view",
+  "services.manage", // create/edit services and prices
+  "staff.view", // barber profiles, hours and time off
+  "staff.manage",
+  "appointments.view_all", // the shared calendar
+  "appointments.manage", // create/edit/cancel anyone's appointments
+  "appointments.manage_own", // a barber's own appointments
+  "customers.search", // find or add a customer while booking
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -30,8 +37,15 @@ const ROLE_PERMISSIONS: Record<MembershipRole, readonly Permission[]> = {
     "team.manage",
     "dashboard.view",
     "barber_app.view",
+    "services.manage",
+    "staff.view",
+    "staff.manage",
+    "appointments.view_all",
+    "appointments.manage",
+    "appointments.manage_own",
+    "customers.search",
   ],
-  barber: ["shop.view", "barber_app.view"],
+  barber: ["shop.view", "barber_app.view", "appointments.manage_own", "customers.search"],
 };
 
 export function can(role: MembershipRole, permission: Permission): boolean {

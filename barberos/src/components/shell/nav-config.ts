@@ -12,7 +12,7 @@ export type NavItem = {
 
 export const OWNER_NAV: NavItem[] = [
   { label: "Overview", href: "/app", icon: "overview", available: true, exact: true },
-  { label: "Appointments", href: "/app/appointments", icon: "calendar", available: false },
+  { label: "Appointments", href: "/app/appointments", icon: "calendar", available: true },
   { label: "Customers", href: "/app/customers", icon: "customers", available: false },
   { label: "Staff", href: "/app/staff", icon: "staff", available: true },
   { label: "Finance", href: "/app/finance", icon: "finance", available: false },
@@ -23,7 +23,7 @@ export const OWNER_NAV: NavItem[] = [
 
 export const BARBER_NAV: NavItem[] = [
   { label: "Today", href: "/barber", icon: "today", available: true, exact: true },
-  { label: "Calendar", href: "/barber/calendar", icon: "calendar", available: false },
+  { label: "Calendar", href: "/barber/calendar", icon: "calendar", available: true },
   { label: "Customers", href: "/barber/customers", icon: "customers", available: false },
   { label: "Earnings", href: "/barber/earnings", icon: "earnings", available: false },
   { label: "Profile", href: "/barber/profile", icon: "profile", available: true },

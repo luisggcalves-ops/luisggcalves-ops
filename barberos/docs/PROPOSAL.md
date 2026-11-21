@@ -400,3 +400,13 @@ The recommended defaults were approved:
 
 - Phase 1 sends transactional email (password reset, invitations) directly through the `sendEmail` adapter. The `notification_outbox` table arrives with booking confirmations in Phase 3.
 - Invitations show the owner a copyable one-time link as well as sending the email, because many shops share links over WhatsApp.
+
+### Phase 2 implementation notes
+
+- **Minimal customers moved forward.** Appointments need a customer, so the `customers` table (name, phone, email, visit statistics) ships in Phase 2. The CRM screens follow in Phase 3.
+- **`blocked_until` column.** Appointments store `ends_at` (shown on the calendar) and `blocked_until` (end + clean-up buffer). The exclusion constraint uses `blocked_until`. Postgres needs immutable expressions in constraints, so the buffer can't be computed inside it.
+- **Buffers may run past closing.** The service itself must fit inside working hours. Its buffer only has to avoid other bookings.
+- **Terminal statuses.** Completed, cancelled and no-show are final in the MVP. An "undo" for mistakes can be added with an audited override if pilots need it.
+- **Staff bookings outside hours.** Owners and managers can tick "Book outside working hours". The history records that it was outside hours. Barbers can't override.
+- **Reschedule by form, not drag-and-drop.** Drag-to-move on the calendar is deferred. The reschedule form shows the same free times and the same server checks.
+- **Barbers' own hours are read-only** for barbers in the MVP. Owners and managers edit them.

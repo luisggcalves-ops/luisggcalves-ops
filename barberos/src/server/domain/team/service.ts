@@ -10,6 +10,7 @@ import { hashToken, randomToken } from "@/lib/ids";
 import { changeRoleSchema, inviteSchema } from "@/lib/validation/team";
 import type { ActorContext, SessionUser } from "../context";
 import { audit } from "../audit";
+import { initStaffProfile } from "../staff/init";
 import { parseInput } from "../validate";
 
 export const INVITE_TTL_DAYS = 7;
@@ -278,7 +279,11 @@ export async function acceptInvitation(user: SessionUser, token: string): Promis
       .returning({ id: shopMemberships.id });
 
     if (role === "barber") {
-      await tx.insert(staffMembers).values({ shopId, membershipId, displayName: user.name });
+      const [staff] = await tx
+        .insert(staffMembers)
+        .values({ shopId, membershipId, displayName: user.name })
+        .returning({ id: staffMembers.id });
+      await initStaffProfile(tx, shopId, staff.id);
     }
 
     await audit(tx, {

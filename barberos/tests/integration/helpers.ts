@@ -60,3 +60,11 @@ export async function addMember(shopId: string, role: "manager" | "barber", name
   ]);
   return { user, ctx: await actorFor(user, shopId) };
 }
+
+/** A date string for the next given weekday at least 7 days from now (so "now" never interferes). */
+export function futureWeekday(weekday: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 7);
+  while (d.getUTCDay() !== weekday) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}

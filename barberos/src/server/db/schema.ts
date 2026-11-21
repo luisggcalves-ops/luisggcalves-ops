@@ -16,12 +16,14 @@ import {
   boolean,
   char,
   check,
+  date,
   foreignKey,
   index,
   integer,
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   smallint,
   text,
   time,
@@ -281,5 +283,250 @@ export const auditLog = pgTable(
   (t) => [index().on(t.shopId, t.createdAt)],
 );
 
+/* ------------------------------------------------------------------------ */
+/* Services and schedules                                                    */
+/* ------------------------------------------------------------------------ */
+
+export const services = pgTable(
+  "services",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    description: text(),
+    durationMin: integer().notNull(),
+    /** Clean-up time after the service. Blocks the barber but isn't shown as the appointment length. */
+    bufferAfterMin: integer().notNull().default(0),
+    priceCents: integer().notNull(),
+    /** Inactive services can't be booked, but they stay on past appointments. */
+    active: boolean().notNull().default(true),
+    /** Hidden services can be booked by staff but don't appear on the public booking page. */
+    isPublic: boolean().notNull().default(true),
+    sortOrder: integer().notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("services_shop_id").on(t.shopId, t.id),
+    check("services_duration", sql`${t.durationMin} between 5 and 480`),
+    check("services_buffer", sql`${t.bufferAfterMin} between 0 and 120`),
+    check("services_price", sql`${t.priceCents} >= 0`),
+  ],
+);
+
+/** Which barber offers which service, with optional per-barber price or duration. */
+export const staffServices = pgTable(
+  "staff_services",
+  {
+    shopId: uuid().notNull(),
+    staffMemberId: uuid().notNull(),
+    serviceId: uuid().notNull(),
+    priceCentsOverride: integer(),
+    durationMinOverride: integer(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.staffMemberId, t.serviceId] }),
+    foreignKey({ columns: [t.shopId, t.staffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    foreignKey({ columns: [t.shopId, t.serviceId], foreignColumns: [services.shopId, services.id] }),
+    index().on(t.shopId, t.serviceId),
+    check("staff_services_price", sql`${t.priceCentsOverride} is null or ${t.priceCentsOverride} >= 0`),
+    check(
+      "staff_services_duration",
+      sql`${t.durationMinOverride} is null or ${t.durationMinOverride} between 5 and 480`,
+    ),
+  ],
+);
+
+/** A barber's recurring weekly hours. Several rows per day allow split shifts. */
+export const workingHours = pgTable(
+  "working_hours",
+  {
+    id: id(),
+    shopId: uuid().notNull(),
+    staffMemberId: uuid().notNull(),
+    weekday: smallint().notNull(),
+    startsAt: time().notNull(),
+    endsAt: time().notNull(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.shopId, t.staffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    index().on(t.shopId, t.staffMemberId, t.weekday),
+    check("working_hours_weekday", sql`${t.weekday} between 0 and 6`),
+    check("working_hours_order", sql`${t.endsAt} > ${t.startsAt}`),
+  ],
+);
+
+export const timeOffType = pgEnum("time_off_type", ["holiday", "sick", "personal", "other"]);
+
+export const timeOff = pgTable(
+  "time_off",
+  {
+    id: id(),
+    shopId: uuid().notNull(),
+    staffMemberId: uuid().notNull(),
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    endsAt: timestamp({ withTimezone: true }).notNull(),
+    type: timeOffType().notNull().default("holiday"),
+    note: text(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.shopId, t.staffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    index().on(t.shopId, t.staffMemberId, t.startsAt),
+    check("time_off_order", sql`${t.endsAt} > ${t.startsAt}`),
+  ],
+);
+
+/** Whole days the shop is closed (public holidays, shop vacation). Dates are in the shop's time zone. */
+export const shopClosures = pgTable(
+  "shop_closures",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    startsOn: date().notNull(),
+    endsOn: date().notNull(),
+    reason: text(),
+    createdAt: createdAt(),
+  },
+  (t) => [index().on(t.shopId, t.startsOn), check("shop_closures_order", sql`${t.endsOn} >= ${t.startsOn}`)],
+);
+
+/* ------------------------------------------------------------------------ */
+/* Customers (minimal in Phase 2; full CRM in Phase 3)                       */
+/* ------------------------------------------------------------------------ */
+
+export const customerSource = pgEnum("customer_source", ["online", "staff", "walk_in"]);
+
+export const customers = pgTable(
+  "customers",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    fullName: text().notNull(),
+    /** E.164 format, such as +351912345678. Used to recognise returning customers. */
+    phoneE164: text(),
+    email: text(),
+    preferredStaffMemberId: uuid(),
+    hairPreferences: text(),
+    marketingConsentAt: timestamp({ withTimezone: true }),
+    source: customerSource().notNull().default("staff"),
+    firstVisitAt: timestamp({ withTimezone: true }),
+    lastVisitAt: timestamp({ withTimezone: true }),
+    visitCount: integer().notNull().default(0),
+    anonymizedAt: timestamp({ withTimezone: true }),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("customers_shop_id").on(t.shopId, t.id),
+    uniqueIndex("customers_shop_phone").on(t.shopId, t.phoneE164).where(sql`${t.phoneE164} is not null`),
+    index("customers_shop_name").on(t.shopId, t.fullName),
+    foreignKey({
+      columns: [t.shopId, t.preferredStaffMemberId],
+      foreignColumns: [staffMembers.shopId, staffMembers.id],
+    }),
+  ],
+);
+
+/* ------------------------------------------------------------------------ */
+/* Appointments                                                              */
+/* ------------------------------------------------------------------------ */
+
+export const appointmentStatus = pgEnum("appointment_status", [
+  "pending",
+  "confirmed",
+  "completed",
+  "cancelled",
+  "no_show",
+]);
+export const appointmentSource = pgEnum("appointment_source", ["online", "staff", "walk_in"]);
+export const cancelledBy = pgEnum("cancelled_by", ["customer", "staff"]);
+
+export const appointments = pgTable(
+  "appointments",
+  {
+    id: id(),
+    shopId: uuid().notNull(),
+    staffMemberId: uuid().notNull(),
+    customerId: uuid().notNull(),
+    serviceId: uuid().notNull(),
+    startsAt: timestamp({ withTimezone: true }).notNull(),
+    /** End of the service itself, shown on the calendar. */
+    endsAt: timestamp({ withTimezone: true }).notNull(),
+    /** End of the service plus its buffer. The barber is unavailable until then. */
+    blockedUntil: timestamp({ withTimezone: true }).notNull(),
+    status: appointmentStatus().notNull().default("confirmed"),
+    source: appointmentSource().notNull().default("staff"),
+    // Snapshots, so history stays correct after the service or price changes.
+    serviceName: text().notNull(),
+    priceCents: integer().notNull(),
+    durationMin: integer().notNull(),
+    customerNote: text(),
+    internalNote: text(),
+    manageTokenHash: text().unique(),
+    cancelledAt: timestamp({ withTimezone: true }),
+    cancelledBy: cancelledBy(),
+    cancelReason: text(),
+    createdByMembershipId: uuid(),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+    /** Optimistic locking: an edit must name the version it was based on. */
+    version: integer().notNull().default(1),
+  },
+  (t) => [
+    unique("appointments_shop_id").on(t.shopId, t.id),
+    foreignKey({ columns: [t.shopId, t.staffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    foreignKey({ columns: [t.shopId, t.customerId], foreignColumns: [customers.shopId, customers.id] }),
+    foreignKey({ columns: [t.shopId, t.serviceId], foreignColumns: [services.shopId, services.id] }),
+    foreignKey({
+      columns: [t.shopId, t.createdByMembershipId],
+      foreignColumns: [shopMemberships.shopId, shopMemberships.id],
+    }),
+    index("appointments_shop_start").on(t.shopId, t.startsAt),
+    index("appointments_staff_start").on(t.shopId, t.staffMemberId, t.startsAt),
+    index("appointments_customer").on(t.shopId, t.customerId),
+    check("appointments_order", sql`${t.endsAt} > ${t.startsAt} and ${t.blockedUntil} >= ${t.endsAt}`),
+    check("appointments_price", sql`${t.priceCents} >= 0`),
+    // The no-overlap exclusion constraint lives in migration 0003 (Drizzle can't express it).
+  ],
+);
+
+export const appointmentEventType = pgEnum("appointment_event_type", [
+  "created",
+  "status_changed",
+  "rescheduled",
+  "edited",
+]);
+
+/** Every change to an appointment, for traceability. Append-only for the app. */
+export const appointmentEvents = pgTable(
+  "appointment_events",
+  {
+    id: id(),
+    shopId: uuid().notNull(),
+    appointmentId: uuid().notNull(),
+    type: appointmentEventType().notNull(),
+    fromValue: jsonb(),
+    toValue: jsonb(),
+    /** Null when the customer made the change (online booking). */
+    actorUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    actorLabel: text().notNull(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.shopId, t.appointmentId], foreignColumns: [appointments.shopId, appointments.id] }),
+    index().on(t.shopId, t.appointmentId, t.createdAt),
+  ],
+);
+
 export type MembershipRole = (typeof membershipRole.enumValues)[number];
 export type Shop = typeof shops.$inferSelect;
+export type AppointmentStatus = (typeof appointmentStatus.enumValues)[number];
+export type Service = typeof services.$inferSelect;
+export type Appointment = typeof appointments.$inferSelect;

@@ -17,12 +17,55 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
 | Phase | Scope | State |
 |---|---|---|
 | 1 | Project setup, database, auth, shop creation, roles | ✅ Done |
-| 2 | Staff profiles & hours, services, availability, appointment calendar | Next |
-| 3 | Public booking, customers, haircut notes | Planned |
+| 2 | Staff profiles & hours, services, availability, appointment calendar | ✅ Done |
+| 3 | Public booking, customer profiles, haircut notes | Next |
 | 4 | Payments, revenue, commissions | Planned |
 | 5 | Hardening, mobile polish, security review | Planned |
 
-### What works today (Phase 1)
+### What works today
+
+#### Phase 2: scheduling
+
+- **Services & prices** (Settings → Services):
+  - Each service has a duration, a clean-up buffer, a price, a staff-only option and a list of the barbers who offer it.
+  - Services are deactivated rather than deleted.
+  - Each booking keeps a copy of the price and duration, so later edits never rewrite history.
+- **Barber profiles** (Staff → a barber):
+  - Calendar colour, bio and whether customers can book them online.
+  - Weekly working hours, with split shifts.
+  - Which services they offer, with an optional per-barber price or duration.
+  - Time off: all day or by the hour, entered in the shop's time zone.
+  - Barbers who don't use the app can still have a profile and be booked.
+- **New barbers start ready:** profiles get the shop's opening hours and all active services automatically.
+- **Shop closures** (Settings → Opening hours): holidays and vacations block every barber.
+- **Availability engine** (`src/server/domain/scheduling/availability.ts`):
+  - A time is free only if the shop is open, the barber is working, they have no time off that day, and the barber has no other booking in that slot (including that booking's buffer).
+  - It works on real instants, so daylight-saving changes are handled.
+  - Slots follow the shop's grid (15-minute steps by default).
+- **Shared calendar** (Appointments):
+  - Day view has a column per barber. Week view shows 7 days for one barber or everyone. Month view shows each day's count and a preview.
+  - Barber filter, a "now" line, hatched off-hours, and labelled time off and closures.
+  - Clicking an empty half-hour opens the booking form at that time.
+- **Booking form:**
+  - Choose barber, service and date, then pick one of the real free times or type any time.
+  - Search for an existing customer, or add a new one inline. Returning customers are matched by their phone number, whatever the format.
+  - Optional walk-in flag and internal note.
+  - Owners and managers can book outside working hours on purpose. Barbers can't.
+- **Appointment panel:**
+  - Status actions: Confirm, Complete, No-show, Cancel with a reason. Completed and No-show only unlock once the appointment has started.
+  - Reschedule, including moving to another barber.
+  - Internal note and full change history.
+- **No double bookings:** a Postgres exclusion constraint makes overlaps impossible even when two people book the same slot at the same instant. If someone else edits an appointment first, your edit is rejected rather than overwriting theirs.
+- **Barber app:**
+  - Today shows the day's appointments and counts.
+  - Calendar shows the next 14 days.
+  - Barbers can open an appointment to update its status, reschedule it or add a note, and can book walk-ins for themselves.
+  - Barbers only ever see their own appointments.
+- **Overview:** today's and this week's appointment counts, cancellations and no-shows, the next appointments, and a setup checklist.
+
+> A minimal customer record (name, phone, email, visit count) arrived in Phase 2 because every appointment needs a customer. Full customer profiles, haircut notes and the GDPR export/delete screens come in Phase 3.
+
+#### Phase 1: foundation
 
 - Sign up, sign in, sign out, forgot/reset password, change password, edit name.
 - Onboarding wizard: shop name, booking link, time zone, currency, opening hours (with split shifts), and an "I cut hair too" option that creates the owner's barber profile.
@@ -30,7 +73,7 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
 - Team management: email invitations with copyable one-time links (7-day expiry), roles (owner / manager / barber), role changes, deactivate/reactivate, and pending-invite cancellation.
 - Barber mobile app: Today and Profile tabs, plus shop switching for people in several shops.
 - Role-based routing: barbers are sent to `/barber` and can't open the owner dashboard.
-- Unbuilt sections are shown as **"Soon"** and are not clickable. There are no dead buttons.
+- Unbuilt sections (Customers, Finance, Inventory, Reports, and the barber Customers and Earnings tabs) are shown as **"Soon"** and are not clickable. There are no dead buttons.
 
 ## Tech stack
 
@@ -106,7 +149,10 @@ src/
     db/                schema, migrations (incl. RLS), client, withTenantTx
     auth/              Better Auth config and session helpers
     authz/             roles and permissions
-    domain/            business logic (shops, team), framework-free and tested
+    domain/            business logic, framework-free and tested:
+                         shops, team, services, staff, customers,
+                         appointments (status machine, booking rules),
+                         scheduling/availability (pure slot engine)
     tenancy.ts         resolves user and active shop for pages and actions
 tests/
   unit/ integration/ e2e/

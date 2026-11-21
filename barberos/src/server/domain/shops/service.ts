@@ -1,6 +1,8 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, gte } from "drizzle-orm";
+import { z } from "zod";
 import { withTenantTx } from "@/server/db/tenant";
 import {
+  shopClosures,
   shopMemberships,
   shopOpeningHours,
   shops,
@@ -17,8 +19,10 @@ import {
   type OpeningInterval,
 } from "@/lib/validation/shop";
 import { shortTime } from "@/lib/time";
+import { closureSchema } from "@/lib/validation/scheduling";
 import type { ActorContext, SessionUser } from "../context";
 import { audit } from "../audit";
+import { initStaffProfile } from "../staff/init";
 import { parseInput } from "../validate";
 
 const SLUG_TAKEN = () =>
@@ -55,11 +59,11 @@ export async function createShop(user: SessionUser, input: unknown): Promise<{ s
         .values({ shopId, userId: user.id, role: "owner" })
         .returning({ id: shopMemberships.id });
       if (data.ownerIsBarber) {
-        await tx.insert(staffMembers).values({
-          shopId,
-          membershipId: membership.id,
-          displayName: user.name,
-        });
+        const [staff] = await tx
+          .insert(staffMembers)
+          .values({ shopId, membershipId: membership.id, displayName: user.name })
+          .returning({ id: staffMembers.id });
+        await initStaffProfile(tx, shopId, staff.id);
       }
       await audit(tx, {
         shopId,
@@ -195,5 +199,55 @@ export async function getOwnStaffProfile(ctx: ActorContext) {
       .from(staffMembers)
       .where(and(eq(staffMembers.shopId, ctx.shopId), eq(staffMembers.membershipId, ctx.membershipId)));
     return row ?? null;
+  });
+}
+
+/* ------------------------------ closures --------------------------------- */
+
+export async function listClosures(ctx: ActorContext, opts: { fromDate?: string } = {}) {
+  assertCan(ctx.role, "shop.view");
+  return withTenantTx(ctx, (tx) =>
+    tx
+      .select()
+      .from(shopClosures)
+      .where(and(eq(shopClosures.shopId, ctx.shopId), opts.fromDate ? gte(shopClosures.endsOn, opts.fromDate) : undefined))
+      .orderBy(asc(shopClosures.startsOn)),
+  );
+}
+
+export async function addClosure(ctx: ActorContext, input: unknown) {
+  assertCan(ctx.role, "shop.update");
+  const data = parseInput(closureSchema, input);
+  return withTenantTx(ctx, async (tx) => {
+    const [row] = await tx
+      .insert(shopClosures)
+      .values({ shopId: ctx.shopId, startsOn: data.startsOn, endsOn: data.endsOn, reason: data.reason })
+      .returning({ id: shopClosures.id });
+    await audit(tx, {
+      shopId: ctx.shopId,
+      actorUserId: ctx.userId,
+      action: "shop.closure_added",
+      entityType: "shop_closure",
+      entityId: row.id,
+      changes: data,
+    });
+    return { closureId: row.id };
+  });
+}
+
+export async function deleteClosure(ctx: ActorContext, closureId: unknown) {
+  assertCan(ctx.role, "shop.update");
+  const id = parseInput(z.uuid(), closureId);
+  await withTenantTx(ctx, async (tx) => {
+    const [row] = await tx.delete(shopClosures).where(eq(shopClosures.id, id)).returning();
+    if (!row) throw notFound("Closure not found.");
+    await audit(tx, {
+      shopId: ctx.shopId,
+      actorUserId: ctx.userId,
+      action: "shop.closure_removed",
+      entityType: "shop_closure",
+      entityId: id,
+      changes: { startsOn: row.startsOn, endsOn: row.endsOn },
+    });
   });
 }

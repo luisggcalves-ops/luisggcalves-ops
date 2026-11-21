@@ -102,3 +102,27 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Calendar blocks: a soft tint of the barber's colour with a solid left edge. */
+.appt-block {
+  background: color-mix(in srgb, var(--c) 12%, var(--surface));
+  border-left: 3px solid var(--c);
+  color: var(--fg);
+}
+.appt-block:hover {
+  background: color-mix(in srgb, var(--c) 20%, var(--surface));
+}
+.appt-block[data-status="pending"] {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 10%, var(--surface)) 0 6px, var(--surface) 6px 12px);
+}
+.appt-block[data-status="completed"] {
+  opacity: 0.7;
+}
+.appt-block[data-status="no_show"],
+.appt-block[data-status="cancelled"] {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.cal-offhours {
+  background: repeating-linear-gradient(135deg, var(--surface-muted) 0 4px, transparent 4px 10px);
+}

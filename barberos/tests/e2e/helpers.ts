@@ -20,3 +20,20 @@ export async function createShop(page: Page, name: string) {
   await page.getByRole("button", { name: "Create shop" }).click();
   await expect(page).toHaveURL(/\/app$/);
 }
+
+/** The next Tuesday at least 2 days ahead (default shop hours are Tue–Sat). */
+export function nextTuesday(): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + 2);
+  while (d.getUTCDay() !== 2) d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export async function addService(page: Page, name: string, duration: string, price: string) {
+  await page.goto("/app/settings/services");
+  await page.getByLabel("Name", { exact: true }).fill(name);
+  await page.getByLabel("Duration (min)").fill(duration);
+  await page.getByLabel(/Price/).fill(price);
+  await page.getByRole("button", { name: "Add service" }).click();
+  await expect(page.getByRole("link", { name, exact: true })).toBeVisible();
+}

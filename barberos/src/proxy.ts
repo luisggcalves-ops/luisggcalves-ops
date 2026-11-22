@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { resolveBaseUrl } from "@/lib/deploy-env";
 
 /**
  * Content-Security-Policy with a fresh nonce per request. Next.js reads the nonce
@@ -9,7 +10,7 @@ import { NextResponse, type NextRequest } from "next/server";
 export function proxy(request: NextRequest) {
   const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
   const isDev = process.env.NODE_ENV === "development";
-  const https = (process.env.BETTER_AUTH_URL ?? "").startsWith("https://");
+  const https = (resolveBaseUrl(process.env) ?? "").startsWith("https://");
   const csp = [
     "default-src 'self'",
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""}`,

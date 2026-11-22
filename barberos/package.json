@@ -14,7 +14,8 @@
     "test:unit": "vitest run --project unit",
     "test:integration": "vitest run --project integration",
     "test:e2e": "playwright test",
-    "seed:demo": "tsx scripts/seed-demo.ts"
+    "seed:demo": "tsx scripts/seed-demo.ts",
+    "vercel-build": "tsx scripts/deploy-setup.ts && next build"
   },
   "dependencies": {
     "better-auth": "^1.7.27",

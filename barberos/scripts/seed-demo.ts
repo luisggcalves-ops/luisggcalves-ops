@@ -57,7 +57,9 @@ const NOTES = [
 const SLOTS = ["09:00", "09:45", "10:30", "11:15", "12:00", "14:00", "14:45", "15:30", "16:15", "17:00", "17:45"];
 
 async function main() {
-  if (process.env.NODE_ENV === "production") throw new Error("Refusing to seed demo data in production.");
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_DEMO_SEED !== "1") {
+    throw new Error("Refusing to seed demo data in production (set SEED_DEMO_ON_DEPLOY=1 for a demo deployment).");
+  }
   const ownerUrl = process.env.MIGRATION_DATABASE_URL;
   if (!ownerUrl) throw new Error("MIGRATION_DATABASE_URL is not set (see .env.example).");
   const admin = new Pool({ connectionString: ownerUrl, max: 1 });

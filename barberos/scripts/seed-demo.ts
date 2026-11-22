@@ -130,20 +130,23 @@ async function main() {
     await setCommissionRule(ctx, { type: "percent", percent: 50, staffMemberId: rui.id });
     await setCommissionRule(ctx, { appliesTo: "products", type: "percent", percent: 10 });
     for (const [name, cost, price, stock] of [
-      ["Matte clay 100ml", "6", "15", 12],
-      ["Beard oil 30ml", "5", "13", 3],
-      ["Sea salt spray", "4", "11", 8],
-      ["Shampoo 250ml", "3.5", "9", 2],
+      ["Matte clay 100ml", "6", "15", 30],
+      ["Beard oil 30ml", "5", "13", 10],
+      ["Sea salt spray", "4", "11", 20],
+      ["Shampoo 250ml", "3.5", "9", 11],
     ] as const) {
       await createProduct(ctx, { name, cost, price, lowStockThreshold: 3, category: "Retail" }, stock);
     }
     const productList = await listProducts(ctx);
+    // Track stock as we sell, so the demo never sells what isn't on the shelf.
+    const stock = new Map(productList.map((p) => [p.id, p.stockQty]));
 
     // Bookings from three days ago to a week ahead. Past ones are completed (a few are no-shows).
     const today = zonedDate(new Date(), TZ);
     let booked = 0;
     let n = 0;
-    for (let offset = -3; offset <= 7; offset++) {
+    // About two weeks of history (so monthly figures look like a real shop) and a week ahead.
+    for (let offset = -12; offset <= 7; offset++) {
       const date = addDays(today, offset);
       for (const st of staff) {
         for (const time of SLOTS) {
@@ -168,7 +171,9 @@ async function main() {
               } else {
                 // Paid at the end of the appointment: completes it, credits commission, sells a product now and then.
                 const { rows: a } = await admin.query("select ends_at, price_cents from appointments where id = $1", [appointmentId]);
-                const product = n % 4 === 0 ? productList[n % productList.length] : null;
+                const candidate = n % 4 === 0 ? productList[(n / 4) % productList.length] : null;
+                const product = candidate && (stock.get(candidate.id) ?? 0) > 1 ? candidate : null;
+                if (product) stock.set(product.id, (stock.get(product.id) ?? 0) - 1);
                 await recordPayment(
                   ctx,
                   {
@@ -178,7 +183,7 @@ async function main() {
                     idempotencyKey: newKey(),
                     items: [
                       { kind: "service", serviceId: service.id, unitPrice: (a[0].price_cents / 100).toFixed(2) },
-                      ...(product && product.stockQty > 1 ? [{ kind: "product", productId: product.id, unitPrice: (product.priceCents / 100).toFixed(2) }] : []),
+                      ...(product ? [{ kind: "product", productId: product.id, unitPrice: (product.priceCents / 100).toFixed(2) }] : []),
                     ],
                   },
                   a[0].ends_at,

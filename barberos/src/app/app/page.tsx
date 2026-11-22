@@ -8,12 +8,17 @@ import { listServices } from "@/server/domain/services/service";
 import { listStaff } from "@/server/domain/staff/service";
 import { listAppointments } from "@/server/domain/appointments/service";
 import { AgendaList } from "@/components/appointments/agenda-list";
+import { canViewFinance, getFinanceSummary } from "@/server/domain/finance/service";
+import { lowStockProducts } from "@/server/domain/finance/inventory";
+import { formatMoney } from "@/lib/money";
+import { resolvePeriod } from "@/lib/period";
+import { AlertTriangle } from "lucide-react";
 import { addDays, startOfWeek, zonedDate, zonedTimeToUtc } from "@/lib/time";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { openStatus, shortTime, zonedNow } from "@/lib/time";
-import { ROLE_LABELS } from "@/server/authz/permissions";
+import { can, ROLE_LABELS } from "@/server/authz/permissions";
 import { cn } from "@/lib/cn";
 
 export const metadata: Metadata = { title: "Overview" };
@@ -42,6 +47,12 @@ export default async function OverviewPage() {
       includeCancelled: true,
     }),
     getBookingSettings(ctx),
+  ]);
+  const financeVisible = await canViewFinance(ctx);
+  const [todayMoney, monthMoney, lowStock] = await Promise.all([
+    financeVisible ? getFinanceSummary(ctx, { fromDate: today, toDate: today }) : null,
+    financeVisible ? getFinanceSummary(ctx, resolvePeriod({ p: "month" }, today)) : null,
+    can(ctx.role, "inventory.manage") ? lowStockProducts(ctx) : [],
   ]);
   const todays = weekAppts.filter((a) => zonedDate(a.startsAt, tz) === today);
   const booked = (list: typeof weekAppts) => list.filter((a) => a.status !== "cancelled");
@@ -102,6 +113,36 @@ export default async function OverviewPage() {
           sub={`barber${bookableBarbers.length === 1 ? "" : "s"}${team.pending.length ? ` · ${team.pending.length} invite${team.pending.length > 1 ? "s" : ""} pending` : ""}`}
         />
       </div>
+
+      {todayMoney && monthMoney ? (
+        <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <Kpi label="Revenue today" value={formatMoney(todayMoney.revenue, ctx.shop.currency)} sub={`${todayMoney.paymentCount} payment${todayMoney.paymentCount === 1 ? "" : "s"}`} />
+          <Kpi label="Revenue this month" value={formatMoney(monthMoney.revenue, ctx.shop.currency)} sub={`${formatMoney(monthMoney.commissions, ctx.shop.currency)} commissions`} />
+          <Kpi label="Profit this month" value={formatMoney(monthMoney.profit, ctx.shop.currency)} sub="Estimated, after costs" />
+          <Card>
+            <CardBody className="flex h-full flex-col justify-between">
+              <p className="text-[13px] text-fg-muted">Finance</p>
+              <Link href="/app/finance" className="mt-2 inline-flex items-center gap-1 text-sm font-medium hover:underline">
+                Open the details <ArrowRight className="size-3.5" />
+              </Link>
+            </CardBody>
+          </Card>
+        </div>
+      ) : null}
+
+      {lowStock.length ? (
+        <Link
+          href="/app/inventory"
+          className="mt-4 flex items-center gap-3 rounded-xl border border-border bg-warning-bg px-4 py-3 text-sm text-warning"
+        >
+          <AlertTriangle className="size-4 shrink-0" />
+          <span className="flex-1">
+            Low stock: {lowStock.slice(0, 4).map((p) => `${p.name} (${p.stockQty})`).join(", ")}
+            {lowStock.length > 4 ? ` and ${lowStock.length - 4} more` : ""}
+          </span>
+          <ArrowRight className="size-4" />
+        </Link>
+      ) : null}
 
       <Card className="mt-6">
         <CardHeader
@@ -200,7 +241,6 @@ export default async function OverviewPage() {
         </Card>
       </div>
 
-      <p className="mt-8 text-[13px] text-fg-subtle">Revenue and commission figures arrive with payments in the next release.</p>
     </>
   );
 }

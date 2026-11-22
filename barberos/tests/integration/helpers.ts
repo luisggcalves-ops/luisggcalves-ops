@@ -68,3 +68,11 @@ export function futureWeekday(weekday: number): string {
   while (d.getUTCDay() !== weekday) d.setUTCDate(d.getUTCDate() + 1);
   return d.toISOString().slice(0, 10);
 }
+
+/** A date string for the given weekday at least 7 days in the past. */
+export function pastWeekday(weekday: number): string {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - 7);
+  while (d.getUTCDay() !== weekday) d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}

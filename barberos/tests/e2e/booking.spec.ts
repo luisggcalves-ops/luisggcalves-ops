@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { addService, createShop, signUp, uniqueEmail } from "./helpers";
+import { addService, createShop, nextTuesday, signUp, uniqueEmail } from "./helpers";
 
 test("a customer books online on a phone, then moves and cancels the booking", async ({ page, browser }) => {
   await signUp(page, "Bea Owner", uniqueEmail("public"));
@@ -64,7 +64,7 @@ test("customer profile: haircut notes, GDPR export and deletion", async ({ page 
   // Book a walk-in for a new customer from the calendar.
   await page.goto("/app/appointments?new=1");
   const drawer = page.getByRole("dialog", { name: "New appointment" });
-  await drawer.getByLabel("Date").fill(new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10));
+  await drawer.getByLabel("Date").fill(nextTuesday()); // a fixed open weekday, so the test doesn't depend on today's date
   await drawer.getByRole("listbox", { name: "Free times" }).getByRole("option").first().click();
   await drawer.getByRole("button", { name: "New customer" }).click();
   await drawer.getByLabel("Name").fill("Hugo Ribeiro");

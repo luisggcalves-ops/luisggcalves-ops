@@ -19,10 +19,48 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
 | 1 | Project setup, database, auth, shop creation, roles | ✅ Done |
 | 2 | Staff profiles & hours, services, availability, appointment calendar | ✅ Done |
 | 3 | Public booking, customer profiles, haircut notes, GDPR | ✅ Done |
-| 4 | Payments, revenue, commissions | Next |
-| 5 | Hardening, mobile polish, security review | Planned |
+| 4 | Payments, revenue, commissions, expenses, inventory, reports | ✅ Done |
+| 5 | Hardening, mobile polish, security review | Next |
 
 ### What works today
+
+#### Phase 4: money
+
+- **Take payment from the appointment panel** (dashboard and barber app):
+  - The service price is pre-filled and can be edited for discounts.
+  - Add products, a tip, and the method (card, cash, transfer or other), with a live total.
+  - Recording a payment marks the appointment completed.
+  - Double taps can't create two payments (idempotency key), and an appointment can only have one active payment (database constraint, race-tested).
+  - Barbers can take payment for their own appointments if the shop allows it.
+- **Void, never delete:**
+  - Voiding needs a reason.
+  - Each commission it created gets a matching negative reversal record, and sold products go back into stock.
+  - The appointment can then be paid again correctly.
+- **Commission rules** (owner only):
+  - A percentage or a fixed amount per item.
+  - Scopes: shop default, per barber, per service, or per barber + service. The most specific rule wins.
+  - Product-sale commission is set separately.
+  - Rules are never edited in place. Each commission line stores the rule it used, so changing a rule never rewrites history.
+- **Finance**, with periods for today, this week, this month, last month, or custom dates:
+  - Revenue, commissions, expenses (recorded expenses + product cost) and **estimated profit = revenue − product cost − commissions − expenses**. Integration tests check that these reconcile.
+  - A daily revenue chart with tooltips and a table view.
+  - Breakdowns by barber (revenue, commission, tips), by service and by payment method.
+  - A payments ledger with voided entries kept, and a counter sale for walk-in product purchases.
+  - Commissions "to pay out" per barber, each line with its rule and base.
+  - Expenses by category (removable, never deleted).
+  - Tips are tracked separately and aren't counted as shop revenue.
+- **Inventory:**
+  - Products with cost and selling price.
+  - Deliveries (which update the cost), in-shop usage, and stock-count corrections.
+  - An append-only stock history, plus low-stock badges and an alert on the Overview.
+- **Reports:** CSV downloads of payments, commissions and appointments for any period. Excel-safe, with protection against formula injection.
+- **Barber Earnings tab:** today, this week or this month: commission, tips, services done, sales made, and recent paid items.
+- **Overview:** revenue today and this month, estimated profit, and low stock.
+- **Access:**
+  - Owners see everything.
+  - Managers see finance only if the shop setting allows it, and can never change commission rules.
+  - Barbers see only their own earnings.
+- **Data integrity:** payments, payment lines, commission records, inventory movements and expenses can't be deleted by the app. Payment lines, commission records and stock movements can't be edited either.
 
 #### Phase 3: online booking and customers
 
@@ -107,7 +145,7 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
 - Team management: email invitations with copyable one-time links (7-day expiry), roles (owner / manager / barber), role changes, deactivate/reactivate, and pending-invite cancellation.
 - Barber mobile app: Today and Profile tabs, plus shop switching for people in several shops.
 - Role-based routing: barbers are sent to `/barber` and can't open the owner dashboard.
-- Unbuilt sections (Finance, Inventory, Reports, and the barber Earnings tab) are shown as **"Soon"** and are not clickable. There are no dead buttons.
+- Every section in the navigation is now live. There are no dead buttons.
 
 ## Tech stack
 
@@ -167,7 +205,7 @@ Open http://localhost:3000 and sign in with a demo account (password `barberos-d
 
 | Account | What you'll see |
 |---|---|
-| `owner@demo.barberos.test` | Owner dashboard with 3 barbers, 5 services, a week of bookings and haircut notes |
+| `owner@demo.barberos.test` | Owner dashboard with 3 barbers, 5 services, a week of bookings, payments, commissions, products and expenses |
 | `barber@demo.barberos.test` | The barber phone app (open it in your browser's phone view) |
 
 The demo shop's public booking page is open too. The link is under Settings → Online booking. The demo shop is flagged as demo data and shows a banner on every screen. You can also create your own shop with **Get started**. Without `RESEND_API_KEY`, emails (password resets, invites) are printed in the server console.

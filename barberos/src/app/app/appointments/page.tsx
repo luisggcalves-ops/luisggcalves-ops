@@ -6,6 +6,8 @@ import { getAppointment, getBookingOptions, listAppointments } from "@/server/do
 import { getCalendarContext, type CalendarContext } from "@/server/domain/appointments/calendar";
 import { DomainError } from "@/server/errors";
 import { recentNotes } from "@/server/domain/customers/crm";
+import { getAppointmentPayment } from "@/server/domain/finance/service";
+import { listProducts } from "@/server/domain/finance/inventory";
 import { can } from "@/server/authz/permissions";
 import {
   addDays,
@@ -182,10 +184,16 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
       );
     } else if (sp.appt) {
       const loaded = await getAppointment(ctx, sp.appt).then(
-        async (data) => ({ data, notes: await recentNotes(ctx, data.customer.id, 5), error: null }),
+        async (data) => ({
+          data,
+          notes: await recentNotes(ctx, data.customer.id, 5),
+          payment: await getAppointmentPayment(ctx, data.appointment.id),
+          products: await listProducts(ctx),
+          error: null,
+        }),
         (err) => {
           if (!(err instanceof DomainError)) throw err;
-          return { data: null, notes: [], error: err.message };
+          return { data: null, notes: [], payment: null, products: [], error: err.message };
         },
       );
       drawer = (
@@ -201,6 +209,10 @@ export default async function AppointmentsPage({ searchParams }: { searchParams:
               customerHref={`/app/customers/${loaded.data.customer.id}`}
               userId={ctx.userId}
               canModerateNotes={can(ctx.role, "customers.edit")}
+              payment={loaded.payment!}
+              products={loaded.products}
+              canRecordPayment={can(ctx.role, "payments.record")}
+              canVoidPayment={can(ctx.role, "payments.void")}
             />
           ) : (
             <p className="text-sm text-fg-muted">{loaded.error}</p>

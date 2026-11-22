@@ -94,3 +94,18 @@ describe("phone", () => {
     expect(normalizePhone("123", "PT")).toBeNull();
   });
 });
+
+import { toCsv } from "@/lib/csv";
+describe("csv", () => {
+  it("escapes quotes, commas and formula injection", () => {
+    expect(toCsv([["a,b", 'say "hi"', "=HYPERLINK(1)", 12.5, null]])).toBe('"a,b","say ""hi""",\'=HYPERLINK(1),12.5,');
+  });
+});
+
+import { cn } from "@/lib/cn";
+describe("cn", () => {
+  it("lets later Tailwind classes override earlier ones", () => {
+    expect(cn("w-full h-10 px-3", "w-32 h-8")).toBe("px-3 w-32 h-8");
+    expect(cn("bg-surface", "bg-primary text-primary-fg")).toBe("bg-primary text-primary-fg");
+  });
+});

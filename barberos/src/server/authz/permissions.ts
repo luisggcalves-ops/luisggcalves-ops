@@ -27,6 +27,12 @@ export const PERMISSIONS = [
   "customers.edit", // contact details and preferences
   "customers.export", // GDPR data export
   "customers.delete", // GDPR erasure (anonymization)
+  "finance.view", // shop-wide revenue, expenses, profit (managers: per shop setting)
+  "payments.record", // take payments (barbers: own appointments, per shop setting)
+  "payments.void",
+  "expenses.manage",
+  "commissions.manage", // commission rules
+  "inventory.manage",
 ] as const;
 
 export type Permission = (typeof PERMISSIONS)[number];
@@ -51,8 +57,13 @@ const ROLE_PERMISSIONS: Record<MembershipRole, readonly Permission[]> = {
     "customers.view_all",
     "customers.edit",
     "customers.export",
+    "finance.view",
+    "payments.record",
+    "payments.void",
+    "expenses.manage",
+    "inventory.manage",
   ],
-  barber: ["shop.view", "barber_app.view", "appointments.manage_own", "customers.search"],
+  barber: ["shop.view", "barber_app.view", "appointments.manage_own", "customers.search", "payments.record"],
 };
 
 export function can(role: MembershipRole, permission: Permission): boolean {

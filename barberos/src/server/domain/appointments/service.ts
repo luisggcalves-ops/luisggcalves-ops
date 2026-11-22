@@ -513,6 +513,38 @@ export async function rescheduleAppointment(ctx: ActorContext, input: unknown) {
   }
 }
 
+/** Visit statistics feed the customer profile and retention features. */
+async function recordVisit(tx: Tx, appt: { customerId: string; startsAt: Date }) {
+  const at = appt.startsAt.toISOString();
+  await tx
+    .update(customers)
+    .set({
+      visitCount: sql`${customers.visitCount} + 1`,
+      lastVisitAt: sql`greatest(${customers.lastVisitAt}, ${at}::timestamptz)`,
+      firstVisitAt: sql`least(coalesce(${customers.firstVisitAt}, ${at}::timestamptz), ${at}::timestamptz)`,
+    })
+    .where(eq(customers.id, appt.customerId));
+}
+
+/**
+ * Locks an appointment and marks it completed as part of a larger transaction
+ * (taking a payment). Returns the locked row. Barbers may only touch their own.
+ */
+export async function completeForPayment(tx: Tx, ctx: ActorContext, appointmentId: string, now: Date) {
+  const access = await accessFor(tx, ctx);
+  const appt = await lockAppointment(tx, access, appointmentId);
+  if (appt.status === "cancelled" || appt.status === "no_show") {
+    throw invalidState(`A ${appt.status.replace("_", "-")} appointment can't be paid.`);
+  }
+  if (appt.status !== "completed") {
+    if (appt.startsAt > now) throw invalidState("Payment can be taken once the appointment has started.");
+    await tx.update(appointments).set({ status: "completed", version: appt.version + 1 }).where(eq(appointments.id, appt.id));
+    await recordVisit(tx, appt);
+    await recordEvent(tx, ctx, appt.id, "status_changed", { status: appt.status }, { status: "completed", reason: "Paid" }, "staff");
+  }
+  return { ...appt, ownAccessOnly: !access.all, ownStaffId: access.ownStaffId };
+}
+
 export async function changeAppointmentStatus(ctx: ActorContext, input: unknown, now: Date = new Date()) {
   const data = parseInput(statusChangeSchema, input);
   await withTenantTx(ctx, async (tx) => {
@@ -537,17 +569,7 @@ export async function changeAppointmentStatus(ctx: ActorContext, input: unknown,
       })
       .where(eq(appointments.id, appt.id));
 
-    if (data.to === "completed") {
-      // Visit statistics feed the customer profile and retention features.
-      await tx
-        .update(customers)
-        .set({
-          visitCount: sql`${customers.visitCount} + 1`,
-          lastVisitAt: sql`greatest(${customers.lastVisitAt}, ${appt.startsAt.toISOString()}::timestamptz)`,
-          firstVisitAt: sql`least(coalesce(${customers.firstVisitAt}, ${appt.startsAt.toISOString()}::timestamptz), ${appt.startsAt.toISOString()}::timestamptz)`,
-        })
-        .where(eq(customers.id, appt.customerId));
-    }
+    if (data.to === "completed") await recordVisit(tx, appt);
     await recordEvent(
       tx,
       ctx,

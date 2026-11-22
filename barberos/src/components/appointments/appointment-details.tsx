@@ -9,6 +9,13 @@ import { NotesForm, RescheduleForm, StatusActions } from "./appointment-actions"
 import type { AppointmentStatus, customerNotes } from "@/server/db/schema";
 import Link from "next/link";
 import { AddNoteForm, NotesTimeline } from "@/components/customers/notes";
+import { PaymentForm } from "@/components/finance/payment-form";
+import { VoidPaymentButton } from "@/components/finance/payment-summary";
+import type { getAppointmentPayment } from "@/server/domain/finance/service";
+import { CheckCircle2 } from "lucide-react";
+
+type PaymentInfo = Awaited<ReturnType<typeof getAppointmentPayment>>;
+const METHOD_LABEL = { cash: "Cash", card: "Card", transfer: "Transfer", other: "Other" } as const;
 
 type Details = Awaited<ReturnType<typeof getAppointment>>;
 
@@ -41,6 +48,10 @@ export function AppointmentDetails({
   customerHref,
   userId,
   canModerateNotes,
+  payment,
+  products,
+  canRecordPayment,
+  canVoidPayment,
 }: {
   data: Details;
   timeZone: string;
@@ -51,6 +62,10 @@ export function AppointmentDetails({
   customerHref: string;
   userId: string;
   canModerateNotes: boolean;
+  payment: PaymentInfo;
+  products: { id: string; name: string; priceCents: number; stockQty: number }[];
+  canRecordPayment: boolean;
+  canVoidPayment: boolean;
 }) {
   const a = data.appointment;
   const date = zonedDate(a.startsAt, timeZone);
@@ -107,6 +122,54 @@ export function AppointmentDetails({
 
       {a.cancelReason ? (
         <p className="rounded-lg bg-danger-bg px-3 py-2 text-[13px] text-danger">Cancellation reason: {a.cancelReason}</p>
+      ) : null}
+
+      {payment.payment ? (
+        <section className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4" aria-label="Payment">
+          <div className="flex items-center justify-between">
+            <p className="inline-flex items-center gap-2 text-sm font-medium">
+              <CheckCircle2 className="size-4 text-success" /> Paid · {METHOD_LABEL[payment.payment.method]}
+            </p>
+            <p className="text-lg font-semibold tabular">{formatMoney(payment.payment.totalCents, currency)}</p>
+          </div>
+          <ul className="flex flex-col gap-1 text-[13px] text-fg-muted">
+            {payment.items.map((i) => (
+              <li key={i.id} className="flex justify-between">
+                <span>
+                  {i.description}
+                  {i.quantity > 1 ? ` ×${i.quantity}` : ""}
+                </span>
+                <span className="tabular">{formatMoney(i.totalCents, currency)}</span>
+              </li>
+            ))}
+            {payment.payment.tipCents ? (
+              <li className="flex justify-between">
+                <span>Tip</span>
+                <span className="tabular">{formatMoney(payment.payment.tipCents, currency)}</span>
+              </li>
+            ) : null}
+          </ul>
+          {canVoidPayment ? <VoidPaymentButton paymentId={payment.payment.id} /> : null}
+        </section>
+      ) : canRecordPayment && (a.status === "completed" || (active && a.startsAt <= now)) ? (
+        <section className="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4" aria-label="Take payment">
+          <h3 className="text-[13px] font-medium">Take payment</h3>
+          <PaymentForm
+            appointmentId={a.id}
+            serviceLine={{ serviceId: a.serviceId, description: a.serviceName, priceCents: a.priceCents, staffMemberId: a.staffMemberId }}
+            products={products}
+            staff={staff}
+            canChooseStaff={data.canManageAll}
+            defaultStaffId={a.staffMemberId}
+            currency={currency}
+          />
+        </section>
+      ) : null}
+      {payment.voided.length ? (
+        <p className="text-[12px] text-fg-subtle">
+          {payment.voided.length} voided payment{payment.voided.length > 1 ? "s" : ""}:{" "}
+          {payment.voided.map((v) => `${formatMoney(v.totalCents, currency)} (${v.voidReason})`).join(", ")}
+        </p>
       ) : null}
 
       <StatusActions appointmentId={a.id} version={a.version} allowed={allowed} started={a.startsAt <= now} />

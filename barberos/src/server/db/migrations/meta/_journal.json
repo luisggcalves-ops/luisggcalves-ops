@@ -50,6 +50,20 @@
       "when": 1795294950232,
       "tag": "0006_shop_cascade",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1795357115110,
+      "tag": "0007_finance",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1795357115607,
+      "tag": "0008_finance_security",
+      "breakpoints": true
     }
   ]
 }

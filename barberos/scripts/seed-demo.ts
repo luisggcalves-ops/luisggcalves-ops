@@ -12,13 +12,16 @@ import "dotenv/config";
 import { Pool } from "pg";
 import { hashPassword } from "better-auth/crypto";
 import { uuidv7 } from "../src/lib/ids";
-import { addDays, zonedDate } from "../src/lib/time";
+import { addDays, startOfMonth, zonedDate } from "../src/lib/time";
 import { DEFAULT_OPENING_HOURS } from "../src/lib/validation/shop";
 import { createShop } from "../src/server/domain/shops/service";
 import { createService, listServices } from "../src/server/domain/services/service";
 import { createStaffProfile, listStaff, setStaffServices } from "../src/server/domain/staff/service";
 import { changeAppointmentStatus, createAppointment } from "../src/server/domain/appointments/service";
 import { addCustomerNote } from "../src/server/domain/customers/crm";
+import { createExpense, recordPayment, setCommissionRule } from "../src/server/domain/finance/service";
+import { createProduct, listProducts } from "../src/server/domain/finance/inventory";
+import { uuidv7 as newKey } from "../src/lib/ids";
 import { DomainError } from "../src/server/errors";
 import { pool } from "../src/server/db/client";
 import type { ActorContext } from "../src/server/domain/context";
@@ -119,6 +122,21 @@ async function main() {
     const staff = await listStaff(ctx);
     for (const st of staff) await setStaffServices(ctx, st.id, services.map((s) => ({ serviceId: s.id })));
 
+    // Money: commission rules, retail products and some expenses.
+    const rui = staff.find((x) => x.displayName === BARBER.name)!;
+    await setCommissionRule(ctx, { type: "percent", percent: 40 });
+    await setCommissionRule(ctx, { type: "percent", percent: 50, staffMemberId: rui.id });
+    await setCommissionRule(ctx, { appliesTo: "products", type: "percent", percent: 10 });
+    for (const [name, cost, price, stock] of [
+      ["Matte clay 100ml", "6", "15", 12],
+      ["Beard oil 30ml", "5", "13", 3],
+      ["Sea salt spray", "4", "11", 8],
+      ["Shampoo 250ml", "3.5", "9", 2],
+    ] as const) {
+      await createProduct(ctx, { name, cost, price, lowStockThreshold: 3, category: "Retail" }, stock);
+    }
+    const productList = await listProducts(ctx);
+
     // Bookings from three days ago to a week ahead. Past ones are completed (a few are no-shows).
     const today = zonedDate(new Date(), TZ);
     let booked = 0;
@@ -143,7 +161,27 @@ async function main() {
             booked++;
             if (offset < 0) {
               const to = n % 11 === 0 ? "no_show" : "completed";
-              await changeAppointmentStatus(ctx, { appointmentId, to, version: 1 }, new Date());
+              if (to === "no_show") {
+                await changeAppointmentStatus(ctx, { appointmentId, to, version: 1 }, new Date());
+              } else {
+                // Paid at the end of the appointment: completes it, credits commission, sells a product now and then.
+                const { rows: a } = await admin.query("select ends_at, price_cents from appointments where id = $1", [appointmentId]);
+                const product = n % 4 === 0 ? productList[n % productList.length] : null;
+                await recordPayment(
+                  ctx,
+                  {
+                    appointmentId,
+                    method: n % 3 === 0 ? "cash" : "card",
+                    tip: n % 5 === 0 ? "2" : "",
+                    idempotencyKey: newKey(),
+                    items: [
+                      { kind: "service", serviceId: service.id, unitPrice: (a[0].price_cents / 100).toFixed(2) },
+                      ...(product && product.stockQty > 1 ? [{ kind: "product", productId: product.id, unitPrice: (product.priceCents / 100).toFixed(2) }] : []),
+                    ],
+                  },
+                  a[0].ends_at,
+                );
+              }
               if (to === "completed" && n % 3 === 0) {
                 const { rows: c } = await admin.query("select customer_id from appointments where id = $1", [appointmentId]);
                 const note = NOTES[n % NOTES.length];
@@ -157,6 +195,10 @@ async function main() {
         }
       }
     }
+
+    await createExpense(ctx, { category: "rent", amount: "850", incurredOn: startOfMonth(today), description: "Monthly rent" });
+    await createExpense(ctx, { category: "supplies", amount: "64.90", incurredOn: addDays(today, -2), vendor: "Barber Supply Co.", description: "Blades and neck strips" });
+    await createExpense(ctx, { category: "utilities", amount: "120", incurredOn: addDays(today, -1), description: "Electricity" });
 
     console.log(`\nDemo shop created with ${staff.length} barbers, ${services.length} services and ${booked} appointments.\n`);
     console.log(`  Owner:  ${OWNER.email} / ${PASSWORD}`);

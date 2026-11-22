@@ -599,8 +599,259 @@ export const notificationOutbox = pgTable(
   (t) => [index("outbox_due").on(t.status, t.scheduledFor), index().on(t.shopId, t.createdAt)],
 );
 
+/* ------------------------------------------------------------------------ */
+/* Products and inventory                                                    */
+/* ------------------------------------------------------------------------ */
+
+export const productKind = pgEnum("product_kind", ["retail", "consumable", "both"]);
+export const inventoryMovementType = pgEnum("inventory_movement_type", [
+  "purchase",
+  "sale",
+  "usage",
+  "adjustment",
+  "sale_reversal",
+]);
+
+export const products = pgTable(
+  "products",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    name: text().notNull(),
+    sku: text(),
+    category: text(),
+    kind: productKind().notNull().default("retail"),
+    costCents: integer().notNull().default(0),
+    priceCents: integer().notNull().default(0),
+    /** Cached sum of inventory_movements.qty_delta, updated in the same transaction. */
+    stockQty: integer().notNull().default(0),
+    lowStockThreshold: integer().notNull().default(0),
+    active: boolean().notNull().default(true),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    unique("products_shop_id").on(t.shopId, t.id),
+    check("products_money", sql`${t.costCents} >= 0 and ${t.priceCents} >= 0`),
+    check("products_threshold", sql`${t.lowStockThreshold} >= 0`),
+  ],
+);
+
+/** Append-only stock ledger. `products.stock_qty` can always be rebuilt from it. */
+export const inventoryMovements = pgTable(
+  "inventory_movements",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    productId: uuid().notNull(),
+    qtyDelta: integer().notNull(),
+    type: inventoryMovementType().notNull(),
+    unitCostCents: integer(),
+    paymentItemId: uuid(),
+    note: text(),
+    actorUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.shopId, t.productId], foreignColumns: [products.shopId, products.id] }),
+    index().on(t.shopId, t.productId, t.createdAt),
+    check("inventory_qty_nonzero", sql`${t.qtyDelta} <> 0`),
+  ],
+);
+
+/* ------------------------------------------------------------------------ */
+/* Payments and commissions                                                  */
+/* ------------------------------------------------------------------------ */
+
+export const paymentMethod = pgEnum("payment_method", ["cash", "card", "transfer", "other"]);
+export const paymentStatus = pgEnum("payment_status", ["recorded", "voided"]);
+export const paymentItemKind = pgEnum("payment_item_kind", ["service", "product"]);
+
+export const payments = pgTable(
+  "payments",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    appointmentId: uuid(),
+    customerId: uuid(),
+    method: paymentMethod().notNull(),
+    subtotalCents: integer().notNull(),
+    tipCents: integer().notNull().default(0),
+    totalCents: integer().notNull(),
+    tipStaffMemberId: uuid(),
+    status: paymentStatus().notNull().default("recorded"),
+    note: text(),
+    /** Client-generated key: submitting the same form twice records one payment. */
+    idempotencyKey: text().notNull(),
+    recordedByUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    recordedAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
+    voidedByUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    voidedAt: timestamp({ withTimezone: true }),
+    voidReason: text(),
+  },
+  (t) => [
+    unique("payments_shop_id").on(t.shopId, t.id),
+    unique("payments_idempotency").on(t.shopId, t.idempotencyKey),
+    uniqueIndex("payments_one_active_per_appointment")
+      .on(t.appointmentId)
+      .where(sql`${t.status} = 'recorded' and ${t.appointmentId} is not null`),
+    foreignKey({ columns: [t.shopId, t.appointmentId], foreignColumns: [appointments.shopId, appointments.id] }),
+    foreignKey({ columns: [t.shopId, t.customerId], foreignColumns: [customers.shopId, customers.id] }),
+    foreignKey({ columns: [t.shopId, t.tipStaffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    index("payments_shop_recorded").on(t.shopId, t.recordedAt),
+    check("payments_amounts", sql`${t.subtotalCents} >= 0 and ${t.tipCents} >= 0 and ${t.totalCents} = ${t.subtotalCents} + ${t.tipCents}`),
+    check("payments_void", sql`(${t.status} = 'voided') = (${t.voidedAt} is not null)`),
+  ],
+);
+
+export const paymentItems = pgTable(
+  "payment_items",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    paymentId: uuid().notNull(),
+    kind: paymentItemKind().notNull(),
+    serviceId: uuid(),
+    productId: uuid(),
+    /** The barber credited with this line (commission and revenue per barber). */
+    staffMemberId: uuid(),
+    description: text().notNull(),
+    quantity: integer().notNull().default(1),
+    unitPriceCents: integer().notNull(),
+    totalCents: integer().notNull(),
+    /** Product cost at the time of sale, for profit (COGS). */
+    unitCostCents: integer(),
+  },
+  (t) => [
+    unique("payment_items_shop_id").on(t.shopId, t.id),
+    foreignKey({ columns: [t.shopId, t.paymentId], foreignColumns: [payments.shopId, payments.id] }),
+    foreignKey({ columns: [t.shopId, t.serviceId], foreignColumns: [services.shopId, services.id] }),
+    foreignKey({ columns: [t.shopId, t.productId], foreignColumns: [products.shopId, products.id] }),
+    foreignKey({ columns: [t.shopId, t.staffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    index().on(t.shopId, t.paymentId),
+    check("payment_items_qty", sql`${t.quantity} > 0`),
+    check("payment_items_total", sql`${t.unitPriceCents} >= 0 and ${t.totalCents} = ${t.unitPriceCents} * ${t.quantity}`),
+    check(
+      "payment_items_ref",
+      sql`(${t.kind} = 'service' and ${t.productId} is null) or (${t.kind} = 'product' and ${t.productId} is not null)`,
+    ),
+  ],
+);
+
+export const commissionAppliesTo = pgEnum("commission_applies_to", ["services", "products"]);
+export const commissionType = pgEnum("commission_type", ["percent", "fixed"]);
+export const commissionRecordKind = pgEnum("commission_record_kind", ["earned", "reversal"]);
+
+/**
+ * Commission rules. They are never edited: changing a rule deactivates it and
+ * creates a new one, and records snapshot the rule they used.
+ * Most specific wins: barber + service, then service, then barber, then shop default.
+ */
+export const commissionRules = pgTable(
+  "commission_rules",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    staffMemberId: uuid(),
+    serviceId: uuid(),
+    appliesTo: commissionAppliesTo().notNull().default("services"),
+    type: commissionType().notNull(),
+    /** Percent in basis points: 40% = 4000. */
+    percentBps: integer(),
+    amountCents: integer(),
+    active: boolean().notNull().default(true),
+    createdByUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    deactivatedAt: timestamp({ withTimezone: true }),
+  },
+  (t) => [
+    foreignKey({ columns: [t.shopId, t.staffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    foreignKey({ columns: [t.shopId, t.serviceId], foreignColumns: [services.shopId, services.id] }),
+    index().on(t.shopId, t.active),
+    check(
+      "commission_rules_value",
+      sql`(${t.type} = 'percent' and ${t.percentBps} between 0 and 10000 and ${t.amountCents} is null)
+        or (${t.type} = 'fixed' and ${t.amountCents} >= 0 and ${t.percentBps} is null)`,
+    ),
+    check("commission_rules_products", sql`${t.appliesTo} = 'services' or ${t.serviceId} is null`),
+  ],
+);
+
+/** Append-only. A void writes a reversal; nothing is ever deleted or edited. */
+export const commissionRecords = pgTable(
+  "commission_records",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    staffMemberId: uuid().notNull(),
+    paymentId: uuid().notNull(),
+    paymentItemId: uuid().notNull(),
+    ruleId: uuid(),
+    ruleSnapshot: jsonb().notNull(),
+    baseCents: integer().notNull(),
+    amountCents: integer().notNull(),
+    kind: commissionRecordKind().notNull(),
+    reversesId: uuid().unique(),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    foreignKey({ columns: [t.shopId, t.staffMemberId], foreignColumns: [staffMembers.shopId, staffMembers.id] }),
+    foreignKey({ columns: [t.shopId, t.paymentId], foreignColumns: [payments.shopId, payments.id] }),
+    foreignKey({ columns: [t.shopId, t.paymentItemId], foreignColumns: [paymentItems.shopId, paymentItems.id] }),
+    uniqueIndex("commission_one_earned_per_item").on(t.paymentItemId).where(sql`${t.kind} = 'earned'`),
+    index().on(t.shopId, t.staffMemberId, t.createdAt),
+  ],
+);
+
+export const expenseCategory = pgEnum("expense_category", [
+  "rent",
+  "utilities",
+  "supplies",
+  "products",
+  "equipment",
+  "marketing",
+  "salaries",
+  "taxes",
+  "other",
+]);
+
+export const expenses = pgTable(
+  "expenses",
+  {
+    id: id(),
+    shopId: uuid()
+      .notNull()
+      .references(() => shops.id, { onDelete: "cascade" }),
+    category: expenseCategory().notNull(),
+    amountCents: integer().notNull(),
+    incurredOn: date().notNull(),
+    vendor: text(),
+    description: text(),
+    recordedByUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    createdAt: createdAt(),
+    voidedAt: timestamp({ withTimezone: true }),
+    voidedByUserId: uuid().references(() => users.id, { onDelete: "set null" }),
+    voidReason: text(),
+  },
+  (t) => [index().on(t.shopId, t.incurredOn), check("expenses_amount", sql`${t.amountCents} > 0`)],
+);
+
 export type MembershipRole = (typeof membershipRole.enumValues)[number];
 export type Shop = typeof shops.$inferSelect;
 export type AppointmentStatus = (typeof appointmentStatus.enumValues)[number];
 export type Service = typeof services.$inferSelect;
 export type Appointment = typeof appointments.$inferSelect;
+export type PaymentMethod = (typeof paymentMethod.enumValues)[number];
+export type ExpenseCategory = (typeof expenseCategory.enumValues)[number];

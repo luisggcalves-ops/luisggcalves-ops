@@ -419,3 +419,12 @@ The recommended defaults were approved:
 - **Returning online customers** are matched by phone. Their name and phone on file are never overwritten from the public form, but a missing email is filled in.
 - **Anonymisation keeps the customer row** (as "Deleted customer"), so appointment history and, from Phase 4, financial records stay intact.
 - **Deleting a shop cascades** through every tenant table thanks to the direct `shop_id` foreign keys added in migration 0006. This is the basis for a future self-service "delete my shop" flow with a grace period.
+
+### Phase 4 implementation notes
+
+- **Line-level pricing, no separate discount field.** A discount is simply a lower price on the line. Commission is calculated on the price actually charged.
+- **Commission rules are immutable.** "Changing" a rule deactivates it and creates a new one. Records store a `rule_snapshot`.
+- **Lines with no barber earn no commission.** A walk-in product sale earns commission only if a barber is credited on the line.
+- **Period reporting is by payment time** (`recorded_at`), and voided payments are excluded entirely. Their records and reversals stay in the ledger for audit.
+- **Payout tracking** (marking commissions as paid to barbers) is deferred. The "To pay out" view plus the commissions CSV cover payroll for the pilot.
+- **Stock can go negative** if a sale is recorded for a product that isn't in stock. The cashier isn't blocked, and the stock-count correction fixes it.

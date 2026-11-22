@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { requirePageContext } from "@/server/tenancy";
 import { listTeam } from "@/server/domain/team/service";
 import { assignableRoles, can, canManageMember, ROLE_LABELS } from "@/server/authz/permissions";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
@@ -78,7 +79,7 @@ export default async function StaffPage() {
 
         <Card>
           <CardHeader title="Team access" description={`${team.members.length} ${team.members.length === 1 ? "person" : "people"}`} />
-          <div className="overflow-x-auto">
+          <ScrollArea label="Team table">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[12px] uppercase tracking-wider text-fg-subtle">
@@ -135,7 +136,7 @@ export default async function StaffPage() {
                 })}
               </tbody>
             </table>
-          </div>
+          </ScrollArea>
         </Card>
 
         {team.pending.length ? (

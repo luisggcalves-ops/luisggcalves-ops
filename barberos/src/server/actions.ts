@@ -2,6 +2,7 @@ import "server-only";
 import { unstable_rethrow } from "next/navigation";
 import { DomainError } from "@/server/errors";
 import type { ActionState } from "@/lib/action-state";
+import { errorFields, logEvent } from "@/server/log";
 
 export type { ActionState };
 
@@ -17,7 +18,7 @@ export async function runAction(fn: () => Promise<ActionState>): Promise<ActionS
     if (err instanceof DomainError) {
       return { status: "error", message: err.message, fieldErrors: err.fieldErrors };
     }
-    console.error("[action] unexpected error", err);
+    logEvent("error", "action_error", errorFields(err));
     return { status: "error", message: "Something went wrong. Please try again." };
   }
 }

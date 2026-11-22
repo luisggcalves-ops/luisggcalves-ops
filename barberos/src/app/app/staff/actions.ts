@@ -6,6 +6,7 @@ import { requireActionContext } from "@/server/tenancy";
 import { runAction, type ActionState } from "@/server/actions";
 import { changeMemberRole, inviteMember, revokeInvitation, setMemberActive } from "@/server/domain/team/service";
 import { readJson, readString } from "@/server/form";
+import { errorFields, logEvent } from "@/server/log";
 import {
   addTimeOff,
   createStaffProfile,
@@ -32,7 +33,7 @@ export async function inviteAction(_prev: ActionState, formData: FormData): Prom
         text: `Hi,\n\n${ctx.user.name} invited you to join ${invite.shopName} on BarberOS as ${ROLE_LABELS[invite.role].toLowerCase()}.\n\nAccept the invitation (valid for 7 days):\n${url}\n`,
       });
     } catch (err) {
-      console.error("[invite] email failed", err);
+      logEvent("warn", "invite_email_failed", errorFields(err));
       emailed = false;
     }
     revalidatePath("/app/staff");

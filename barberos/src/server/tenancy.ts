@@ -8,7 +8,8 @@ import { can, homePathFor, type Permission } from "@/server/authz/permissions";
 import type { ActorContext, SessionUser } from "@/server/domain/context";
 import { forbidden } from "@/server/errors";
 
-export const ACTIVE_SHOP_COOKIE = "barberos_shop";
+import { ACTIVE_SHOP_COOKIE } from "@/server/active-shop";
+export { ACTIVE_SHOP_COOKIE };
 
 export type ShopContext = ActorContext & {
   user: SessionUser;

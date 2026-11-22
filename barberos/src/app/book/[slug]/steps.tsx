@@ -13,7 +13,7 @@ export function StepHeader({ step, title, backHref }: { step: number; title: str
         ) : (
           <span />
         )}
-        <div className="flex gap-1" aria-label={`Step ${step} of 4`}>
+        <div className="flex gap-1" role="progressbar" aria-label="Booking progress" aria-valuemin={1} aria-valuemax={4} aria-valuenow={step} aria-valuetext={`Step ${step} of 4`}>
           {[1, 2, 3, 4].map((i) => (
             <span key={i} className={cn("h-1 w-6 rounded-full", i <= step ? "bg-primary" : "bg-border")} />
           ))}

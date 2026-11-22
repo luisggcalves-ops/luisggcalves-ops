@@ -12,6 +12,7 @@ import {
 } from "@/server/domain/appointments/service";
 import { searchCustomers } from "@/server/domain/customers/service";
 import { readString } from "@/server/form";
+import { errorFields, logEvent } from "@/server/log";
 import { formatClock } from "@/lib/time";
 import { formatPhone } from "@/lib/phone";
 import { DomainError } from "@/server/errors";
@@ -34,7 +35,7 @@ export async function getSlotsAction(input: {
     return { slots: slots.map((s) => formatClock(s, ctx.shop.timezone)) };
   } catch (err) {
     if (err instanceof DomainError) return { error: err.message };
-    console.error("[slots] unexpected error", err);
+    logEvent("error", "slots_error", errorFields(err));
     return { error: "Couldn't load available times." };
   }
 }

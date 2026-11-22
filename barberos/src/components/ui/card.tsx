@@ -5,7 +5,7 @@ export function Card({ className, inverse, ...props }: ComponentProps<"section">
   return (
     <section
       className={cn(
-        "rounded-xl border shadow-card",
+        "min-w-0 rounded-xl border shadow-card",
         // One background only. Combining bg classes is order-dependent in CSS.
         inverse ? "border-transparent bg-primary text-primary-fg" : "border-border bg-surface",
         className,

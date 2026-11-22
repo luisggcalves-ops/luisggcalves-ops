@@ -109,3 +109,12 @@ describe("cn", () => {
     expect(cn("bg-surface", "bg-primary text-primary-fg")).toBe("bg-primary text-primary-fg");
   });
 });
+
+import { redactPath } from "@/server/log";
+describe("log redaction", () => {
+  it("removes one-time tokens from paths", () => {
+    expect(redactPath("/book/shop/manage/abc123XYZ?booked=1")).toBe("/book/shop/manage/[redacted]?booked=1");
+    expect(redactPath("/invite/sekret")).toBe("/invite/[redacted]");
+    expect(redactPath("/reset-password?token=abc&x=1")).toBe("/reset-password?token=[redacted]&x=1");
+  });
+});

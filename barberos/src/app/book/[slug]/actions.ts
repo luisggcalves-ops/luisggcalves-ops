@@ -11,6 +11,7 @@ import { withinRateLimit } from "@/server/rate-limit";
 import { readString } from "@/server/form";
 import { env } from "@/server/env";
 import { DomainError } from "@/server/errors";
+import { errorFields, logEvent } from "@/server/log";
 
 async function clientIp() {
   const h = await headers();
@@ -30,7 +31,7 @@ function deliverSoon(shopId: string) {
     try {
       await deliverDueForShop(shopId);
     } catch (err) {
-      console.error("[outbox] delivery failed; it will be retried", err);
+      logEvent("warn", "outbox_delivery_failed", { shopId, ...errorFields(err) });
     }
   });
 }

@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { requireUser } from "@/server/auth/session";
 import { createShop } from "@/server/domain/shops/service";
 import { runAction, type ActionState } from "@/server/actions";
-import { setActiveShopCookie } from "@/app/session-actions";
+import { setActiveShopCookie } from "@/server/active-shop";
 import { readJson, readString } from "@/server/form";
 
 export async function createShopAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

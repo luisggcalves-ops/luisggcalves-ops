@@ -6,7 +6,7 @@ import { auth } from "@/server/auth/auth";
 import { requireUser } from "@/server/auth/session";
 import { listUserMemberships } from "@/server/domain/shops/service";
 import { homePathFor } from "@/server/authz/permissions";
-import { ACTIVE_SHOP_COOKIE } from "@/server/tenancy";
+import { ACTIVE_SHOP_COOKIE, setActiveShopCookie } from "@/server/active-shop";
 
 export async function signOutAction(formData?: FormData) {
   await auth.api.signOut({ headers: await headers() });
@@ -19,15 +19,6 @@ export async function signOutAction(formData?: FormData) {
   redirect("/sign-in");
 }
 
-export async function setActiveShopCookie(shopId: string) {
-  (await cookies()).set(ACTIVE_SHOP_COOKIE, shopId, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 365,
-  });
-}
 
 /** Switches the active shop, but only to a shop the user is an active member of. */
 export async function switchShopAction(formData: FormData) {

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requirePageContext } from "@/server/tenancy";
 import { listServices } from "@/server/domain/services/service";
 import { listStaff } from "@/server/domain/staff/service";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ActionButton } from "@/components/ui/action-button";
@@ -22,7 +23,7 @@ export default async function ServicesPage() {
       <Card>
         <CardHeader title="Services & prices" description="Prices are snapshotted on each booking, so changing a price never rewrites past appointments." />
         {services.length ? (
-          <div className="overflow-x-auto">
+          <ScrollArea label="Services table">
             <table className="w-full min-w-[560px] text-sm">
               <thead>
                 <tr className="border-b border-border text-left text-[12px] uppercase tracking-wider text-fg-subtle">
@@ -69,7 +70,7 @@ export default async function ServicesPage() {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollArea>
         ) : (
           <p className="px-5 py-8 text-center text-sm text-fg-muted">No services yet. Add your first one below.</p>
         )}

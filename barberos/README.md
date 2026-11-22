@@ -20,9 +20,30 @@ The full architecture, schema and roadmap are in [`docs/PROPOSAL.md`](docs/PROPO
 | 2 | Staff profiles & hours, services, availability, appointment calendar | ✅ Done |
 | 3 | Public booking, customer profiles, haircut notes, GDPR | ✅ Done |
 | 4 | Payments, revenue, commissions, expenses, inventory, reports | ✅ Done |
-| 5 | Hardening, mobile polish, security review | Next |
+| 5 | Hardening: security review, accessibility, mobile, monitoring | ✅ Done |
+| 6 | Pilot with real barbershops | Next |
 
 ### What works today
+
+#### Phase 5: hardening
+
+- **Security review** ([SECURITY.md](SECURITY.md)), with automated guards that fail the build if:
+  - a table loses row-level security or the app role gains bypass rights (`schema-security.test.ts`);
+  - a server action skips its permission check (`server-actions-audit.test.ts`);
+  - a barber or signed-out visitor can reach owner pages or private downloads (`access.spec.ts`).
+- **Browser hardening:** a nonce-based Content-Security-Policy that allows no inline scripts, plus HSTS, COOP and the existing headers.
+- **Accessibility:** about 30 screens (dashboard, barber app, public booking) are scanned with axe on desktop, phone and phone dark mode, with zero serious or critical WCAG 2.1 AA issues. The same test fails on any sideways scrolling at phone width.
+- **Fixes the audit found:**
+  - low-contrast secondary text (now at least 4.5:1 in light and dark);
+  - cards overflowing on phones;
+  - scrollable tables keyboards couldn't reach;
+  - an invalid ARIA label;
+  - a cookie helper accidentally exposed as a server endpoint.
+- **Operations:**
+  - `/api/health` for uptime monitoring;
+  - structured JSON error logs with tokens redacted;
+  - loading skeletons and a last-resort error screen;
+  - a deployment guide with backups and a go-live checklist ([DEPLOYMENT.md](DEPLOYMENT.md)).
 
 #### Phase 4: money
 
@@ -243,7 +264,9 @@ tests/
   unit/ integration/ e2e/
 ```
 
-## Deployment (when ready)
+## Deployment
+
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for the full guide and go-live checklist. In short:
 
 Recommended: **Vercel + Neon**, both in an EU region.
 

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { minutesToTime } from "@/lib/time";
 import { cn } from "@/lib/cn";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { layoutLanes, visibleHours, type GridColumn } from "./layout";
 
 const PX_PER_MIN = 1.1;
@@ -19,7 +20,7 @@ export function TimeGrid({ columns, nowMinutes }: { columns: GridColumn[]; nowMi
   const y = (min: number) => (Math.min(Math.max(min, startMin), endMin) - startMin) * PX_PER_MIN;
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-border bg-surface shadow-card">
+    <ScrollArea label="Calendar" className="rounded-xl border border-border bg-surface shadow-card">
       <div style={{ minWidth: Math.max(560, 64 + columns.length * 150) }}>
         <div className="sticky top-0 z-10 flex border-b border-border bg-surface">
           <div className="w-16 shrink-0" />
@@ -102,6 +103,6 @@ export function TimeGrid({ columns, nowMinutes }: { columns: GridColumn[]; nowMi
           ))}
         </div>
       </div>
-    </div>
+    </ScrollArea>
   );
 }

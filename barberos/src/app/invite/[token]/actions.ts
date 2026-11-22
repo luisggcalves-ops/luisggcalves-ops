@@ -5,7 +5,7 @@ import { requireUser } from "@/server/auth/session";
 import { acceptInvitation } from "@/server/domain/team/service";
 import { runAction, type ActionState } from "@/server/actions";
 import { readString } from "@/server/form";
-import { setActiveShopCookie } from "@/app/session-actions";
+import { setActiveShopCookie } from "@/server/active-shop";
 import { homePathFor } from "@/server/authz/permissions";
 
 export async function acceptInviteAction(_prev: ActionState, formData: FormData): Promise<ActionState> {

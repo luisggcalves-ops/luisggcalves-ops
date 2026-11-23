@@ -6,6 +6,8 @@
 */
 (() => {
   'use strict';
+  const changed = () => document.dispatchEvent(new CustomEvent('daybook:change'));
+  const BELL_SVG = '<svg class="bell-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>';
 
   const STORE_KEY = 'planner.items.v1';
   const FIRED_KEY = 'planner.fired.v1';
@@ -45,7 +47,7 @@
   let viewMonth = parseYmd(selected).getMonth();
   let editingId = null;
 
-  const persist = () => save(STORE_KEY, items);
+  const persist = () => { save(STORE_KEY, items); changed(); };
 
   function seedExamples() {
     const t = todayStr();
@@ -86,16 +88,16 @@
   const $ = id => document.getElementById(id);
   const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-  const BELL = '<span class="bell" title="Reminder set">&#128276;</span>';
+  const BELL = `<span class="bell" title="Reminder set">${BELL_SVG}</span>`;
   const REPEAT_LABEL = { daily: 'Daily', weekdays: 'Weekdays', weekly: 'Weekly', monthly: 'Monthly' };
 
   function renderCalendar() {
     const first = new Date(viewYear, viewMonth, 1);
-    $('month-label').textContent = first.toLocaleDateString([], { month: 'long', year: 'numeric' });
+    $('p-month-label').textContent = first.toLocaleDateString([], { month: 'long', year: 'numeric' });
     const offset = (first.getDay() + 6) % 7; // Monday first
     const start = new Date(viewYear, viewMonth, 1 - offset);
     const t = todayStr();
-    const grid = $('cal-grid');
+    const grid = $('p-cal-grid');
     grid.innerHTML = '';
     for (let i = 0; i < 42; i++) {
       const d = new Date(start); d.setDate(start.getDate() + i);
@@ -103,7 +105,7 @@
       const list = itemsOn(ds);
       const cell = document.createElement('button');
       cell.type = 'button';
-      cell.className = 'cell' + (d.getMonth() !== viewMonth ? ' other' : '') + (ds === t ? ' today' : '') + (ds === selected ? ' selected' : '');
+      cell.className = 'day' + (d.getMonth() !== viewMonth ? ' other' : '') + (ds === t ? ' today' : '') + (ds === selected ? ' selected' : '');
       cell.setAttribute('aria-label', `${fmtLong(ds)}, ${list.length} item${list.length === 1 ? '' : 's'}`);
       const chips = list.slice(0, 3).map(it =>
         `<span class="chip ${it.type}${it.priority === 'high' && it.type === 'task' ? ' high' : ''}${isDone(it, ds) ? ' done' : ''}">${it.time ? fmtTime(it.time) + ' ' : ''}${esc(it.title)}</span>`).join('');
@@ -148,12 +150,12 @@
 
   function renderDay() {
     const t = todayStr();
-    $('day-label').textContent = selected === t ? 'Today' : fmtLong(selected);
+    $('p-day-label').textContent = selected === t ? 'Today' : fmtLong(selected);
     const list = itemsOn(selected);
     const open = list.filter(i => i.type === 'task' && !isDone(i, selected)).length;
-    $('day-sub').textContent = selected === t ? fmtLong(selected) : (selected === addDays(t, 1) ? 'Tomorrow' : '');
-    if (list.length) $('day-sub').textContent += ($('day-sub').textContent ? ' · ' : '') + `${open} task${open === 1 ? '' : 's'} left`;
-    const box = $('day-list');
+    $('p-day-sub').textContent = selected === t ? fmtLong(selected) : (selected === addDays(t, 1) ? 'Tomorrow' : '');
+    if (list.length) $('p-day-sub').textContent += ($('p-day-sub').textContent ? ' · ' : '') + `${open} task${open === 1 ? '' : 's'} left`;
+    const box = $('p-day-list');
     box.innerHTML = '';
     if (!list.length) { box.innerHTML = '<div class="empty">Nothing planned. Tap “+ Add”, or tap the selected day again.</div>'; return; }
     const events = list.filter(i => i.type === 'event'), tasks = list.filter(i => i.type === 'task');
@@ -163,11 +165,11 @@
 
   function renderSide() {
     const od = overdueTasks();
-    $('overdue-card').hidden = !od.length;
-    const obox = $('overdue-list'); obox.innerHTML = '';
+    $('p-overdue-card').hidden = !od.length;
+    const obox = $('p-overdue-list'); obox.innerHTML = '';
     od.forEach(i => obox.appendChild(itemRow(i, i.date, { showDate: true })));
 
-    const ubox = $('upcoming-list'); ubox.innerHTML = '';
+    const ubox = $('p-upcoming-list'); ubox.innerHTML = '';
     const t = todayStr();
     let count = 0;
     for (let n = 1; n <= 7; n++) {
@@ -176,7 +178,7 @@
     }
     if (!count) ubox.innerHTML = '<div class="empty">Nothing in the next week.</div>';
 
-    $('example-banner').hidden = !items.some(i => i.example);
+    $('p-example-banner').hidden = !items.some(i => i.example);
   }
 
   function render() { renderCalendar(); renderDay(); renderSide(); }
@@ -195,45 +197,45 @@
   }
 
   // ---------- editor ----------
-  const form = $('item-form');
+  const form = $('p-item-form');
   const setType = type => {
     form.dataset.type = type;
-    $(type === 'task' ? 'type-task' : 'type-event').checked = true;
-    $('f-title').placeholder = type === 'task' ? 'e.g. Pay rent' : 'e.g. Dentist appointment';
+    $(type === 'task' ? 'p-type-task' : 'p-type-event').checked = true;
+    $('p-f-title').placeholder = type === 'task' ? 'e.g. Pay rent' : 'e.g. Dentist appointment';
   };
   form.querySelectorAll('input[name="type"]').forEach(r => r.addEventListener('change', () => setType(r.value)));
 
   function openEditor(id, dateStr) {
     editingId = id;
     const it = id ? items.find(i => i.id === id) : null;
-    $('modal-title').textContent = it ? 'Edit' : 'New item';
+    $('p-modal-title').textContent = it ? 'Edit' : 'New item';
     setType(it ? it.type : 'task');
-    $('f-title').value = it ? it.title : '';
-    $('f-date').value = it ? it.date : (dateStr || selected);
-    $('f-time').value = it ? it.time : '';
-    $('f-end').value = it ? it.endTime : '';
-    $('f-priority').value = it ? it.priority : 'normal';
-    $('f-repeat').value = it ? it.repeat : 'none';
-    $('f-remind').value = String(it ? it.remind : 15);
-    $('f-notes').value = it ? it.notes : '';
-    $('delete-btn').hidden = !it;
-    $('modal').hidden = false;
-    setTimeout(() => $('f-title').focus(), 30);
+    $('p-f-title').value = it ? it.title : '';
+    $('p-f-date').value = it ? it.date : (dateStr || selected);
+    $('p-f-time').value = it ? it.time : '';
+    $('p-f-end').value = it ? it.endTime : '';
+    $('p-f-priority').value = it ? it.priority : 'normal';
+    $('p-f-repeat').value = it ? it.repeat : 'none';
+    $('p-f-remind').value = String(it ? it.remind : 15);
+    $('p-f-notes').value = it ? it.notes : '';
+    $('p-delete-btn').hidden = !it;
+    $('p-modal').hidden = false;
+    setTimeout(() => $('p-f-title').focus(), 30);
   }
-  const closeEditor = () => { $('modal').hidden = true; editingId = null; };
+  const closeEditor = () => { $('p-modal').hidden = true; editingId = null; };
 
   form.addEventListener('submit', e => {
     e.preventDefault();
     const data = {
       type: form.dataset.type,
-      title: $('f-title').value.trim(),
-      date: $('f-date').value,
-      time: $('f-time').value,
-      endTime: form.dataset.type === 'event' ? $('f-end').value : '',
-      priority: $('f-priority').value,
-      repeat: $('f-repeat').value,
-      remind: Number($('f-remind').value),
-      notes: $('f-notes').value.trim(),
+      title: $('p-f-title').value.trim(),
+      date: $('p-f-date').value,
+      time: $('p-f-time').value,
+      endTime: form.dataset.type === 'event' ? $('p-f-end').value : '',
+      priority: $('p-f-priority').value,
+      repeat: $('p-f-repeat').value,
+      remind: Number($('p-f-remind').value),
+      notes: $('p-f-notes').value.trim(),
     };
     if (!data.title || !data.date) return;
     if (editingId) {
@@ -247,11 +249,11 @@
     persist(); closeEditor(); selectDay(data.date);
     if (data.remind >= 0) maybeAskPermission();
   });
-  $('cancel-btn').addEventListener('click', closeEditor);
-  $('modal').addEventListener('click', e => { if (e.target.id === 'modal') closeEditor(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modal').hidden) closeEditor(); });
-  $('delete-btn').addEventListener('click', () => {
-    const btn = $('delete-btn');
+  $('p-cancel-btn').addEventListener('click', closeEditor);
+  $('p-modal').addEventListener('click', e => { if (e.target.id === 'p-modal') closeEditor(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('p-modal').hidden) closeEditor(); });
+  $('p-delete-btn').addEventListener('click', () => {
+    const btn = $('p-delete-btn');
     if (btn.dataset.confirm !== '1') { btn.dataset.confirm = '1'; btn.textContent = 'Tap again to delete'; setTimeout(() => { btn.dataset.confirm = ''; btn.textContent = 'Delete'; }, 3000); return; }
     btn.dataset.confirm = ''; btn.textContent = 'Delete';
     items = items.filter(i => i.id !== editingId); clearFired(editingId);
@@ -262,11 +264,12 @@
   const clearFired = id => { Object.keys(fired).forEach(k => { if (k.startsWith(id + '@')) delete fired[k]; }); save(FIRED_KEY, fired); };
 
   function updateNotifyBtn() {
-    const btn = $('notify-btn');
-    if (!('Notification' in window)) { btn.textContent = 'Reminders: in page only'; btn.disabled = true; return; }
+    const btn = $('p-notify-btn');
+    const label = t => { btn.innerHTML = `${BELL_SVG}<span class="lbl">${t}</span>`; btn.setAttribute('aria-label', t); };
+    if (!('Notification' in window)) { label('Reminders in app'); btn.disabled = true; return; }
     const p = Notification.permission;
     btn.classList.toggle('on', p === 'granted');
-    btn.textContent = p === 'granted' ? 'Reminders on' : p === 'denied' ? 'Pop-ups blocked' : 'Turn on reminders';
+    label(p === 'granted' ? 'Reminders on' : p === 'denied' ? 'Pop-ups blocked' : 'Turn on reminders');
     btn.title = p === 'denied' ? 'Allow notifications for this site in your browser settings' : 'Show system pop-ups for reminders';
   }
   function maybeAskPermission() {
@@ -274,7 +277,7 @@
       Notification.requestPermission().then(updateNotifyBtn).catch(() => {});
     }
   }
-  $('notify-btn').addEventListener('click', () => {
+  $('p-notify-btn').addEventListener('click', () => {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       showToast({ title: 'Reminders are on', sub: 'Keep this tab open (it can be in the background).', kind: 'info' });
@@ -349,18 +352,18 @@
     });
     if (document.hidden) document.title = '🔔 ' + it.title;
   }
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) document.title = 'Planner'; });
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) document.title = 'Daybook'; });
 
   function showToast({ title, sub, kind = 'reminder', actions = [] }) {
     const el = document.createElement('div');
-    el.className = 'toast ' + (kind === 'info' ? 'info' : '');
+    el.className = 'rtoast' + (kind === 'info' ? ' info' : '');
     el.setAttribute('role', kind === 'reminder' ? 'alert' : 'status');
-    el.innerHTML = `<div class="toast-title">${kind === 'reminder' ? '&#128276; ' : ''}${esc(title)}</div>
-      <div class="toast-sub">${esc(sub)}</div><div class="toast-actions"></div>`;
-    const bar = el.querySelector('.toast-actions');
+    el.innerHTML = `<div class="rtoast-title">${kind === 'reminder' ? BELL_SVG : ''}${esc(title)}</div>
+      <div class="rtoast-sub">${esc(sub)}</div><div class="rtoast-actions"></div>`;
+    const bar = el.querySelector('.rtoast-actions');
     [...actions, { label: kind === 'reminder' ? 'Dismiss' : 'OK' }].forEach(a => {
       const b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn btn-sm ' + (a.primary ? 'btn-primary' : 'btn-secondary');
+      b.type = 'button'; b.className = 'btn btn-sm ' + (a.primary ? 'btn-gold' : 'btn-ghost');
       b.textContent = a.label;
       b.addEventListener('click', () => { a.fn && a.fn(); el.remove(); });
       bar.appendChild(b);
@@ -414,16 +417,16 @@
     return lines.join('\r\n');
   }
 
-  $('export-ics-btn').addEventListener('click', () => {
+  $('p-export-ics-btn').addEventListener('click', () => {
     if (!items.some(i => !i.example)) { showToast({ title: 'Nothing to export yet', sub: 'Add your own items first. Examples are left out.', kind: 'info' }); return; }
     download('planner.ics', buildIcs(), 'text/calendar');
     showToast({ title: 'Calendar file downloaded', sub: 'Open planner.ics on your phone or computer to add everything to your calendar app.', kind: 'info' });
   });
-  $('export-json-btn').addEventListener('click', () => {
+  $('p-export-json-btn').addEventListener('click', () => {
     download(`planner-backup-${todayStr()}.json`, JSON.stringify({ version: 1, items }, null, 2), 'application/json');
   });
-  $('import-json-btn').addEventListener('click', () => $('import-file').click());
-  $('import-file').addEventListener('change', async e => {
+  $('p-import-json-btn').addEventListener('click', () => $('p-import-file').click());
+  $('p-import-file').addEventListener('change', async e => {
     const file = e.target.files[0]; e.target.value = '';
     if (!file) return;
     try {
@@ -443,12 +446,12 @@
   });
 
   // ---------- wiring ----------
-  $('new-btn').addEventListener('click', () => openEditor(null));
-  $('add-day-btn').addEventListener('click', () => openEditor(null, selected));
-  $('today-btn').addEventListener('click', () => selectDay(todayStr()));
-  $('prev-month').addEventListener('click', () => { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar(); });
-  $('next-month').addEventListener('click', () => { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar(); });
-  $('clear-examples-btn').addEventListener('click', () => { items = items.filter(i => !i.example); persist(); render(); });
+  $('p-new-btn').addEventListener('click', () => openEditor(null));
+  $('p-add-day-btn').addEventListener('click', () => openEditor(null, selected));
+  $('p-today-btn').addEventListener('click', () => selectDay(todayStr()));
+  $('p-prev-month').addEventListener('click', () => { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar(); });
+  $('p-next-month').addEventListener('click', () => { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar(); });
+  $('p-clear-examples-btn').addEventListener('click', () => { items = items.filter(i => !i.example); persist(); render(); });
 
   // re-render at midnight so "Today" stays correct
   let lastDay = todayStr();
@@ -456,6 +459,9 @@
     if (todayStr() !== lastDay) { if (selected === lastDay) selected = todayStr(); lastDay = todayStr(); render(); }
     checkReminders();
   }, 20000);
+
+  window.Daybook = window.Daybook || {};
+  window.Daybook.plan = { itemsOn, isDone, todayStr, fmtTime, addDays, openEditor };
 
   updateNotifyBtn();
   render();

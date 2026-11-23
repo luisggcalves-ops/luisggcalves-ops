@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Daybook" />
+  <title>Daybook</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="daybook.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">D</span><span class="brand-name">Daybook</span></div>
+
+    <nav class="tabs" aria-label="Sections">
+      <a href="#plan" class="tab" data-view="plan">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2.5"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>
+        <span>Plan</span>
+      </a>
+      <a href="#money" class="tab" data-view="money">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M15 8.6a4 4 0 1 0 0 6.8M7.5 11h6M7.5 13.4h6"/></svg>
+        <span>Money</span>
+      </a>
+    </nav>
+
+    <div class="top-actions" data-for="plan">
+      <button class="btn btn-ghost btn-icon" id="p-notify-btn" title="Turn on reminder pop-ups"></button>
+      <button class="btn btn-gold" id="p-new-btn">+ New</button>
+    </div>
+    <div class="top-actions" data-for="money" hidden>
+      <button class="btn btn-ghost" id="m-settings-btn">Settings</button>
+      <button class="btn btn-gold" id="m-excel-btn">Excel</button>
+    </div>
+  </div>
+</header>
+
+<main>
+<!-- ======================= PLAN ======================= -->
+<section id="view-plan" class="view" aria-label="Plan">
+  <div id="p-example-banner" class="banner" hidden>
+    <span>These are example entries so you can see how it works.</span>
+    <button class="btn btn-ghost btn-sm" id="p-clear-examples-btn">Clear examples</button>
+  </div>
+  <section class="hero">
+    <div class="hero-main">
+      <div class="eyebrow" id="p-hero-eyebrow">Today</div>
+      <div class="hero-figure"><span id="p-hero-figure"></span><span class="hero-unit" id="p-hero-unit"></span></div>
+      <p class="hero-line" id="p-hero-line"></p>
+    </div>
+    <div class="goal next-card">
+      <div class="goal-head"><span class="eyebrow">Next up</span><span class="muted" id="p-next-when"></span></div>
+      <div class="goal-name" id="p-next-title"></div>
+      <div class="next-meta" id="p-next-meta"></div>
+    </div>
+  </section>
+
+  <div class="layout">
+    <section class="panel calendar-card">
+      <div class="cal-head">
+        <button class="icon-btn" id="p-prev-month" aria-label="Previous month">&#8249;</button>
+        <h2 id="p-month-label"></h2>
+        <button class="icon-btn" id="p-next-month" aria-label="Next month">&#8250;</button>
+        <button class="btn btn-ghost btn-sm" id="p-today-btn">Today</button>
+      </div>
+      <div class="cal-dow"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+      <div class="cal-grid" id="p-cal-grid"></div>
+      <div class="legend">
+        <span><i class="dot dot-event"></i>Event</span>
+        <span><i class="dot dot-task"></i>Task</span>
+        <span><i class="dot dot-high"></i>High priority</span>
+      </div>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <div class="day-head">
+          <div><h2 id="p-day-label"></h2><span class="muted" id="p-day-sub"></span></div>
+          <button class="btn btn-ghost btn-sm" id="p-add-day-btn">+ Add</button>
+        </div>
+        <div id="p-day-list" class="item-list"></div>
+      </section>
+
+      <section class="panel" id="p-overdue-card" hidden>
+        <h3 class="over-text">Overdue tasks</h3>
+        <div id="p-overdue-list" class="item-list"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Next 7 days</h3>
+        <div id="p-upcoming-list" class="item-list"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Backup &amp; calendar</h3>
+        <p class="muted small">Your plans live in this browser. Export to your phone's calendar to get reminders when Daybook is closed.</p>
+        <div class="tool-row">
+          <button class="btn btn-ghost btn-sm" id="p-export-ics-btn">Export to calendar (.ics)</button>
+          <button class="btn btn-ghost btn-sm" id="p-export-json-btn">Download backup</button>
+          <button class="btn btn-ghost btn-sm" id="p-import-json-btn">Restore backup</button>
+          <input type="file" id="p-import-file" accept="application/json,.json" hidden />
+        </div>
+      </section>
+    </aside>
+  </div>
+</section>
+
+<!-- ======================= MONEY ======================= -->
+<section id="view-money" class="view" aria-label="Money" hidden>
+  <div id="m-example-banner" class="banner" hidden>
+    <span>These are example numbers so you can see how it works.</span>
+    <button class="btn btn-ghost btn-sm" id="m-clear-examples-btn">Clear examples</button>
+  </div>
+  <section class="hero">
+    <div class="hero-main">
+      <div class="month-nav">
+        <button class="icon-btn icon-btn-sm" id="m-prev-month" aria-label="Previous month">&#8249;</button>
+        <span class="eyebrow" id="m-hero-eyebrow"></span>
+        <button class="icon-btn icon-btn-sm" id="m-next-month" aria-label="Next month">&#8250;</button>
+      </div>
+      <div class="hero-figure"><span id="m-hero-amount"></span><span class="hero-unit" id="m-hero-unit"></span></div>
+      <p class="hero-line" id="m-hero-line"></p>
+    </div>
+    <div class="goal" id="m-goal-card">
+      <div class="goal-head">
+        <span class="eyebrow">Saving for</span>
+        <button class="link-btn" id="m-goal-edit">Edit</button>
+      </div>
+      <div class="goal-name" id="m-goal-name"></div>
+      <div class="goal-track" role="progressbar" id="m-goal-bar" aria-valuemin="0" aria-valuemax="100"><div class="goal-fill" id="m-goal-fill"></div></div>
+      <div class="goal-meta"><span id="m-goal-saved"></span><span id="m-goal-pct"></span></div>
+    </div>
+  </section>
+
+  <section class="tiles" id="m-tiles"></section>
+
+  <div class="layout">
+    <section class="panel sheet-panel">
+      <div class="panel-head">
+        <h2>Sheet</h2>
+        <div class="filters">
+          <input id="m-search" type="search" placeholder="Search" aria-label="Search entries" />
+          <select id="m-cat-filter" aria-label="Filter by category"></select>
+        </div>
+      </div>
+
+      <form id="m-entry-form" class="entry" autocomplete="off">
+        <input id="m-e-date" type="date" required aria-label="Date" />
+        <input id="m-e-desc" type="text" required placeholder="What was it?" aria-label="Description" />
+        <select id="m-e-cat" aria-label="Category"></select>
+        <input id="m-e-amount" type="text" inputmode="decimal" required placeholder="0.00" aria-label="Amount" />
+        <button type="submit" class="btn btn-gold">Add</button>
+      </form>
+
+      <div class="sheet-scroll">
+        <table class="sheet" id="m-sheet">
+          <thead>
+            <tr class="letters"><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th></th></tr>
+            <tr class="names">
+              <th class="rn"></th>
+              <th><button class="sort" data-key="date">Date</button></th>
+              <th><button class="sort" data-key="desc">Description</button></th>
+              <th><button class="sort" data-key="cat">Category</button></th>
+              <th class="num"><button class="sort" data-key="amount">Amount</button></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="m-sheet-body"></tbody>
+          <tfoot id="m-sheet-foot"></tfoot>
+        </table>
+      </div>
+      <p class="hint">Click any cell to change it. Changes save on their own.</p>
+    </section>
+
+    <aside class="side">
+      <section class="panel">
+        <div class="panel-head"><h2>Where it went</h2><span class="muted" id="m-cat-sub"></span></div>
+        <div id="m-cat-list" class="cat-list"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Day by day</h2><span class="muted" id="m-daily-sub"></span></div>
+        <div class="chart" id="m-daily-chart"><div class="tip" id="m-daily-tip" hidden></div></div>
+      </section>
+      <section class="panel">
+        <h3>Files</h3>
+        <p class="muted small">Your numbers live in this browser. Download an Excel copy any time, or bring in a sheet you already have.</p>
+        <div class="tool-row">
+          <button class="btn btn-ghost btn-sm" id="m-excel-btn-2">Download Excel</button>
+          <button class="btn btn-ghost btn-sm" id="m-import-btn">Import Excel / CSV</button>
+          <button class="btn btn-ghost btn-sm" id="m-backup-btn">Download backup</button>
+          <button class="btn btn-ghost btn-sm" id="m-restore-btn">Restore backup</button>
+        </div>
+        <input type="file" id="m-import-file" accept=".xlsx,.xls,.csv" hidden />
+        <input type="file" id="m-restore-file" accept=".json,application/json" hidden />
+      </section>
+    </aside>
+  </div>
+</section>
+
+<footer class="foot">Also yours: <a href="../">LiftLog</a></footer>
+</main>
+
+<!-- ======================= PLAN: EDIT DIALOG ======================= -->
+<div class="modal-backdrop" id="p-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="p-modal-title">
+    <form id="p-item-form" autocomplete="off">
+      <div class="modal-head">
+        <h2 id="p-modal-title">New item</h2>
+        <div class="seg" role="radiogroup" aria-label="Type">
+          <label><input type="radio" name="type" value="task" id="p-type-task" checked /><span>Task</span></label>
+          <label><input type="radio" name="type" value="event" id="p-type-event" /><span>Event</span></label>
+        </div>
+      </div>
+      <div class="form-grid">
+        <label class="field full"><span>Title</span><input id="p-f-title" type="text" required placeholder="e.g. Pay rent" /></label>
+        <label class="field"><span>Date</span><input id="p-f-date" type="date" required /></label>
+        <label class="field"><span>Time <i class="opt">(optional)</i></span><input id="p-f-time" type="time" /></label>
+        <label class="field event-only"><span>Ends <i class="opt">(optional)</i></span><input id="p-f-end" type="time" /></label>
+        <label class="field task-only"><span>Priority</span>
+          <select id="p-f-priority"><option value="low">Low</option><option value="normal" selected>Normal</option><option value="high">High</option></select>
+        </label>
+        <label class="field"><span>Repeats</span>
+          <select id="p-f-repeat">
+            <option value="none">Doesn't repeat</option>
+            <option value="daily">Every day</option>
+            <option value="weekdays">Weekdays (Mon–Fri)</option>
+            <option value="weekly">Every week</option>
+            <option value="monthly">Every month</option>
+          </select>
+        </label>
+        <label class="field"><span>Remind me</span>
+          <select id="p-f-remind">
+            <option value="-1">No reminder</option>
+            <option value="0">At the time</option>
+            <option value="5">5 min before</option>
+            <option value="15" selected>15 min before</option>
+            <option value="30">30 min before</option>
+            <option value="60">1 hour before</option>
+            <option value="1440">1 day before</option>
+          </select>
+          <i class="hint">Items without a time remind you at 9:00.</i>
+        </label>
+        <label class="field full"><span>Notes <i class="opt">(optional)</i></span><textarea id="p-f-notes" rows="2"></textarea></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="p-delete-btn" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="p-cancel-btn">Cancel</button>
+        <button type="submit" class="btn btn-gold">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ======================= MONEY: SETTINGS ======================= -->
+<div class="modal-backdrop" id="m-settings" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="m-settings-title">
+    <div class="modal-head">
+      <h2 id="m-settings-title">Money settings</h2>
+      <button class="icon-btn" id="m-settings-close" aria-label="Close">&#215;</button>
+    </div>
+    <div class="set-block">
+      <h3>Saving goal</h3>
+      <div class="set-grid">
+        <label class="field"><span>Name</span><input id="m-s-goal-name" type="text" placeholder="e.g. Trip to Japan" /></label>
+        <label class="field"><span>Target</span><input id="m-s-goal-target" type="text" inputmode="decimal" placeholder="5000" /></label>
+        <label class="field"><span>Already saved</span><input id="m-s-goal-start" type="text" inputmode="decimal" placeholder="0" /></label>
+        <label class="field"><span>Currency</span>
+          <select id="m-s-currency">
+            <option value="EUR">Euro (€)</option>
+            <option value="USD">US dollar ($)</option>
+            <option value="GBP">British pound (£)</option>
+            <option value="BRL">Brazilian real (R$)</option>
+            <option value="CHF">Swiss franc (CHF)</option>
+            <option value="CAD">Canadian dollar (CA$)</option>
+            <option value="AUD">Australian dollar (A$)</option>
+            <option value="JPY">Japanese yen (¥)</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted small">Goal progress = already saved + everything you've kept (income minus spending) across all months.</p>
+    </div>
+    <div class="set-block">
+      <h3>Categories &amp; monthly budgets</h3>
+      <div class="cat-edit-head"><span>Name</span><span>Type</span><span>Budget / month</span><span></span></div>
+      <div id="m-cat-edit" class="cat-edit"></div>
+      <form id="m-new-cat-form" class="cat-edit-row new" autocomplete="off">
+        <input id="m-nc-name" type="text" placeholder="New category" aria-label="New category name" required />
+        <select id="m-nc-kind" aria-label="New category type"><option value="expense">Spending</option><option value="income">Income</option></select>
+        <input id="m-nc-budget" type="text" inputmode="decimal" placeholder="No budget" aria-label="New category budget" />
+        <button type="submit" class="btn btn-gold btn-sm">Add</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="plan.js"></script>
+<script src="money.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

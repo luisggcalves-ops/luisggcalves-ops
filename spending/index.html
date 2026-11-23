@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#000000" />
+  <title>Spending</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="spending.css" />
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="brand-mark" aria-hidden="true">&#8364;</span><span>Spending</span></div>
+    <div class="month-nav">
+      <button class="icon-btn" id="prev-month" aria-label="Previous month">&#8249;</button>
+      <span id="month-label" class="month-label"></span>
+      <button class="icon-btn" id="next-month" aria-label="Next month">&#8250;</button>
+    </div>
+    <div class="top-actions">
+      <button class="btn btn-ghost" id="settings-btn">Settings</button>
+      <button class="btn btn-gold" id="excel-btn">Excel</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div id="example-banner" class="banner" hidden>
+    <span>These are example numbers so you can see how it works.</span>
+    <button class="btn btn-ghost btn-sm" id="clear-examples-btn">Clear examples</button>
+  </div>
+
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-main">
+      <div class="eyebrow" id="hero-eyebrow"></div>
+      <div class="hero-figure"><span id="hero-amount"></span><span class="hero-unit" id="hero-unit"></span></div>
+      <p class="hero-line" id="hero-line"></p>
+    </div>
+    <div class="goal" id="goal-card">
+      <div class="goal-head">
+        <span class="eyebrow">Saving for</span>
+        <button class="link-btn" id="goal-edit">Edit</button>
+      </div>
+      <div class="goal-name" id="goal-name"></div>
+      <div class="goal-track" role="progressbar" id="goal-bar" aria-valuemin="0" aria-valuemax="100"><div class="goal-fill" id="goal-fill"></div></div>
+      <div class="goal-meta"><span id="goal-saved"></span><span id="goal-pct"></span></div>
+    </div>
+  </section>
+
+  <!-- TILES -->
+  <section class="tiles" id="tiles"></section>
+
+  <div class="layout">
+    <!-- SHEET -->
+    <section class="panel sheet-panel">
+      <div class="panel-head">
+        <h2>Sheet</h2>
+        <div class="filters">
+          <input id="search" type="search" placeholder="Search" aria-label="Search entries" />
+          <select id="cat-filter" aria-label="Filter by category"></select>
+        </div>
+      </div>
+
+      <form id="entry-form" class="entry" autocomplete="off">
+        <input id="e-date" type="date" required aria-label="Date" />
+        <input id="e-desc" type="text" required placeholder="What was it?" aria-label="Description" />
+        <select id="e-cat" aria-label="Category"></select>
+        <input id="e-amount" type="text" inputmode="decimal" required placeholder="0.00" aria-label="Amount" />
+        <button type="submit" class="btn btn-gold">Add</button>
+      </form>
+
+      <div class="sheet-scroll">
+        <table class="sheet" id="sheet">
+          <thead>
+            <tr class="letters"><th></th><th>A</th><th>B</th><th>C</th><th>D</th><th></th></tr>
+            <tr class="names">
+              <th class="rn"></th>
+              <th><button class="sort" data-key="date">Date</button></th>
+              <th><button class="sort" data-key="desc">Description</button></th>
+              <th><button class="sort" data-key="cat">Category</button></th>
+              <th class="num"><button class="sort" data-key="amount">Amount</button></th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="sheet-body"></tbody>
+          <tfoot id="sheet-foot"></tfoot>
+        </table>
+      </div>
+      <p class="hint">Click any cell to change it. Changes save on their own.</p>
+    </section>
+
+    <!-- SIDE -->
+    <aside class="side">
+      <section class="panel">
+        <div class="panel-head"><h2>Where it went</h2><span class="muted" id="cat-sub"></span></div>
+        <div id="cat-list" class="cat-list"></div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Day by day</h2><span class="muted" id="daily-sub"></span></div>
+        <div class="chart" id="daily-chart"><div class="tip" id="daily-tip" hidden></div></div>
+      </section>
+      <section class="panel">
+        <h2>Files</h2>
+        <p class="muted small">Your numbers live in this browser. Download an Excel copy any time, or bring in a sheet you already have.</p>
+        <div class="tool-row">
+          <button class="btn btn-ghost btn-sm" id="excel-btn-2">Download Excel</button>
+          <button class="btn btn-ghost btn-sm" id="import-btn">Import Excel / CSV</button>
+          <button class="btn btn-ghost btn-sm" id="backup-btn">Download backup</button>
+          <button class="btn btn-ghost btn-sm" id="restore-btn">Restore backup</button>
+        </div>
+        <input type="file" id="import-file" accept=".xlsx,.xls,.csv" hidden />
+        <input type="file" id="restore-file" accept=".json,application/json" hidden />
+      </section>
+    </aside>
+  </div>
+</main>
+
+<!-- SETTINGS -->
+<div class="modal-backdrop" id="settings" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+    <div class="modal-head">
+      <h2 id="settings-title">Settings</h2>
+      <button class="icon-btn" id="settings-close" aria-label="Close">&#215;</button>
+    </div>
+
+    <div class="set-block">
+      <h3>Saving goal</h3>
+      <div class="set-grid">
+        <label class="field"><span>Name</span><input id="s-goal-name" type="text" placeholder="e.g. Trip to Japan" /></label>
+        <label class="field"><span>Target</span><input id="s-goal-target" type="text" inputmode="decimal" placeholder="5000" /></label>
+        <label class="field"><span>Already saved</span><input id="s-goal-start" type="text" inputmode="decimal" placeholder="0" /></label>
+        <label class="field"><span>Currency</span>
+          <select id="s-currency">
+            <option value="EUR">Euro (€)</option>
+            <option value="USD">US dollar ($)</option>
+            <option value="GBP">British pound (£)</option>
+            <option value="BRL">Brazilian real (R$)</option>
+            <option value="CHF">Swiss franc (CHF)</option>
+            <option value="CAD">Canadian dollar (CA$)</option>
+            <option value="AUD">Australian dollar (A$)</option>
+            <option value="JPY">Japanese yen (¥)</option>
+          </select>
+        </label>
+      </div>
+      <p class="muted small">Goal progress = already saved + everything you've kept (income minus spending) across all months.</p>
+    </div>
+
+    <div class="set-block">
+      <h3>Categories &amp; monthly budgets</h3>
+      <div class="cat-edit-head"><span>Name</span><span>Type</span><span>Budget / month</span><span></span></div>
+      <div id="cat-edit" class="cat-edit"></div>
+      <form id="new-cat-form" class="cat-edit-row new" autocomplete="off">
+        <input id="nc-name" type="text" placeholder="New category" aria-label="New category name" required />
+        <select id="nc-kind" aria-label="New category type"><option value="expense">Spending</option><option value="income">Income</option></select>
+        <input id="nc-budget" type="text" inputmode="decimal" placeholder="No budget" aria-label="New category budget" />
+        <button type="submit" class="btn btn-gold btn-sm">Add</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<script src="spending.js"></script>
+</body>
+</html>

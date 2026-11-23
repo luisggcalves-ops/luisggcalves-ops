@@ -193,15 +193,23 @@
 
   const M = () => window.Daybook && window.Daybook.money;
   const billKey = (it, ds) => `plan:${it.id}@${ds}`;
+  const DB = () => window.Daybook && window.Daybook.debts;
   function recordBill(it, ds) {
-    if (it.amount > 0 && M()) M().addLinked(billKey(it, ds), { date: ds, desc: it.title, cat: it.moneyCat || 'other', amount: it.amount });
+    if (!(it.amount > 0)) return;
+    // a monthly debt payment counts on the debt (and lands in Money from there)
+    if (it.debtId && DB()) { DB().pay(it.debtId, { date: ds, amount: it.amount, link: billKey(it, ds), record: true }); return; }
+    if (M()) M().addLinked(billKey(it, ds), { date: ds, desc: it.title, cat: it.moneyCat || 'other', amount: it.amount });
+  }
+  function unrecordBill(it, ds) {
+    if (it.debtId && DB() && DB().unpayLinked(billKey(it, ds))) return;
+    if (M()) M().removeLinked(billKey(it, ds));
   }
   function toggleDone(id, ds) {
     const it = items.find(i => i.id === id); if (!it) return;
     const nowDone = !it.doneDates.includes(ds);
     it.doneDates = nowDone ? [...it.doneDates, ds] : it.doneDates.filter(x => x !== ds);
     if (it.amount > 0) {
-      if (nowDone) recordBill(it, ds); else if (M()) M().removeLinked(billKey(it, ds));
+      if (nowDone) recordBill(it, ds); else unrecordBill(it, ds);
       // an unticked direct debit stays unpaid until ticked again
       if (it.autopay) it.skipDates = nowDone ? (it.skipDates || []).filter(x => x !== ds) : [...new Set([...(it.skipDates || []), ds])];
     }

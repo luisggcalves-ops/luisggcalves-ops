@@ -470,9 +470,65 @@ form[data-type="task"].has-amount p.bill-only { display: block; }
 .rtoast-title .bell-ico { color: var(--gold); width: 16px; height: 16px; flex: none; }
 .rtoast-sub { font-size: 0.8rem; color: var(--text-2); margin-top: 0.15rem; }
 .rtoast-actions { display: flex; gap: 0.4rem; margin-top: 0.65rem; justify-content: flex-end; flex-wrap: wrap; }
+/* while a dialog is open, pop-ups go to the top so they never cover its buttons */
+body:has(.modal-backdrop:not([hidden])) .toasts { bottom: auto; top: calc(12px + env(safe-area-inset-top, 0px)); }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 
 @media (prefers-reduced-motion: reduce) {
   .hero-figure, .toast, .rtoast { animation: none; }
   .goal-fill { transition: none; }
 }
+
+/* ================= DEBTS ================= */
+.debt-section { margin-bottom: 2rem; }
+.section-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.75rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+.debt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 1rem; }
+.debt {
+  background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 1.1rem;
+  display: flex; flex-direction: column; gap: 0.7rem; min-width: 0; transition: border-color 0.3s, box-shadow 0.6s;
+}
+.debt-top { display: flex; align-items: flex-start; gap: 0.6rem; }
+.debt-id { flex: 1; min-width: 0; }
+.debt-name { font-family: var(--f-display); font-size: 1.5rem; line-height: 1.15; overflow-wrap: anywhere; }
+.debt-who { font-size: 0.78rem; color: var(--text-2); margin-top: 0.15rem; }
+.debt-left { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.debt-amt { font-family: var(--f-mono); font-size: 1.35rem; font-variant-numeric: tabular-nums; }
+.debt-of { font-size: 0.8rem; color: var(--muted); }
+.debt.owed .debt-amt { color: var(--good); }
+.ticks { display: flex; flex-wrap: wrap; gap: 4px; }
+.tick { width: 14px; height: 20px; border-radius: 3px; background: var(--gold-soft); position: relative; overflow: hidden; }
+.tick.on { background: var(--gold); }
+.tick.part::after { content: ""; position: absolute; inset: auto 0 0 0; height: var(--f, 50%); background: var(--gold); opacity: 0.75; }
+.debt.owed .tick { background: var(--good-soft); }
+.debt.owed .tick.on, .debt.owed .tick.part::after { background: var(--good); }
+.debt-meta { display: flex; justify-content: space-between; gap: 0.5rem; font-size: 0.8rem; color: var(--text-2); flex-wrap: wrap; }
+.debt-meta span:first-child { color: var(--gold); font-weight: 600; }
+.debt.owed .debt-meta span:first-child { color: var(--good); }
+.debt-actions { display: flex; align-items: center; gap: 0.9rem; }
+.pay-form {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.6rem; padding: 0.8rem;
+  border: 1px dashed var(--line-2); border-radius: var(--r-sm);
+}
+.pay-form .check-field { grid-column: 1 / -1; }
+.pay-form .pay-amt { font-family: var(--f-mono); }
+.pay-btns { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 0.5rem; }
+.debt-history { list-style: none; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.debt-history li { display: flex; align-items: center; gap: 0.75rem; padding: 0.35rem 0; border-bottom: 1px solid var(--line); font-size: 0.82rem; color: var(--text-2); }
+.debt-history .h-amt { margin-left: auto; font-family: var(--f-mono); color: var(--text); }
+.debt-history .h-tag { font-size: 0.66rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.debt-history .row-del { opacity: 1; width: 1.6rem; height: 1.6rem; }
+.stamp {
+  font-size: 0.66rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.16em; color: var(--gold);
+  border: 1.5px solid var(--gold); border-radius: 4px; padding: 0.15rem 0.45rem; transform: rotate(-4deg); margin-top: 0.3rem;
+}
+.debt.cleared { opacity: 0.8; }
+.debt.just-cleared { border-color: var(--gold); box-shadow: 0 0 0 1px var(--gold), 0 0 40px rgba(216, 180, 106, 0.35); }
+.debt.just-cleared .stamp { animation: stamp 0.6s cubic-bezier(.2,1.6,.4,1); }
+@keyframes stamp { from { transform: rotate(-4deg) scale(2.2); opacity: 0; } to { transform: rotate(-4deg) scale(1); opacity: 1; } }
+.hero-figure.free > span:first-child { color: var(--gold); font-style: italic; }
+.quick-preview .qp-kind.debt { background: var(--good); }
+@media (max-width: 640px) {
+  .tab { padding: 0.35rem 1.2rem; flex: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .debt.just-cleared .stamp { animation: none; } }
+

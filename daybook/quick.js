@@ -163,6 +163,8 @@
     const isBill = amount && (repeat !== 'none' || isFuture);
 
     if (amount && !isBill) {
+      const debt = D.debts && D.debts.match(title);
+      if (debt) return { kind: 'debt', debtId: debt.id, name: debt.name, owed: debt.kind === 'owed', amount, date: ymd(date || today) };
       const cat = guessCategory(title);
       const cats = D.money ? D.money.categories() : [];
       const catObj = cats.find(c => c.id === cat);
@@ -196,7 +198,12 @@
   function describe(r) {
     if (!r) return '';
     const parts = [];
-    if (r.kind === 'money') {
+    if (r.kind === 'debt') {
+      const after = Math.max(0, D.debts.left(r.debtId) - r.amount);
+      parts.push(`<span class="qp-kind debt">Debt</span>`, `<span class="qp-part">${esc(r.name)}</span>`,
+        `<span class="qp-part">${esc(D.money.fmt(r.amount))}</span>`, esc(r.owed ? 'paid back to you' : 'payment'),
+        after > 0 ? esc(`${D.money.fmt0(after)} left after`) : 'Clears it', esc(fmtDay(r.date)));
+    } else if (r.kind === 'money') {
       parts.push(`<span class="qp-kind">Money</span>`, `<span class="qp-part">${esc(r.desc)}</span>`,
         `<span class="qp-part">${r.income ? '+' : ''}${esc(D.money.fmt(r.amount))}</span>`, esc(r.income && r.cat === 'extra' ? 'Income' : catName(r.cat)), esc(fmtDay(r.date)));
     } else {
@@ -235,7 +242,10 @@
     e.preventDefault();
     const r = parse(input.value);
     if (!r) { input.focus(); return; }
-    if (r.kind === 'money') {
+    if (r.kind === 'debt') {
+      const pid = D.debts.pay(r.debtId, { amount: r.amount, date: r.date, record: !r.owed });
+      if (pid) toast(`${D.money.fmt(r.amount)} ticked off ${r.name}. ${D.money.fmt0(D.debts.left(r.debtId))} to go.`, () => D.debts.unpay(r.debtId, pid));
+    } else if (r.kind === 'money') {
       const id = D.money.addTx({ date: r.date, desc: r.desc, cat: r.cat, amount: r.amount });
       toast(`Added to Money: ${r.desc} · ${r.income ? '+' : ''}${D.money.fmt(r.amount)}`, () => D.money.removeTx(id));
     } else {

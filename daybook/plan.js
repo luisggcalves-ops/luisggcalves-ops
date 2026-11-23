@@ -6,7 +6,7 @@
 */
 (() => {
   'use strict';
-  const changed = () => document.dispatchEvent(new CustomEvent('daybook:change'));
+  const changed = () => document.dispatchEvent(new CustomEvent('daybook:change', { detail: { source: 'plan' } }));
   const BELL_SVG = '<svg class="bell-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>';
 
   const STORE_KEY = 'planner.items.v1';
@@ -55,7 +55,7 @@
     return [
       ex({ type: 'event', title: 'Gym — push day', date: t, time: '18:00', endTime: '19:15', repeat: 'weekly', remind: 30 }),
       ex({ type: 'task',  title: 'Reply to emails', date: t, time: '', priority: 'normal' }),
-      ex({ type: 'task',  title: 'Pay phone bill', date: addDays(t, 2), time: '10:00', priority: 'high', remind: 1440 }),
+      ex({ type: 'task',  title: 'Pay phone bill', date: addDays(t, 2), time: '10:00', priority: 'high', remind: 1440, repeat: 'monthly', amount: 25, moneyCat: 'subs' }),
       ex({ type: 'event', title: 'Dinner with friends', date: addDays(t, 4), time: '20:00', remind: 60 }),
       ex({ type: 'task',  title: 'Plan the week', date: t, time: '19:30', repeat: 'weekly', remind: 15 }),
     ];
@@ -133,6 +133,7 @@
     if (it.type === 'task' && it.time) meta.push(fmtTime(it.time));
     if (it.type === 'event' && it.endTime) meta.push('until ' + fmtTime(it.endTime));
     if (it.repeat && it.repeat !== 'none') meta.push(REPEAT_LABEL[it.repeat]);
+    if (it.amount > 0) meta.push((M() ? M().fmt(it.amount) : it.amount) + (it.autopay ? ' · auto' : ''));
     if (it.example) meta.push('Example');
     row.innerHTML = `${lead}
       <div class="item-main" role="button" tabindex="0">
@@ -190,10 +191,51 @@
     render();
   }
 
+  const M = () => window.Daybook && window.Daybook.money;
+  const billKey = (it, ds) => `plan:${it.id}@${ds}`;
+  function recordBill(it, ds) {
+    if (it.amount > 0 && M()) M().addLinked(billKey(it, ds), { date: ds, desc: it.title, cat: it.moneyCat || 'other', amount: it.amount });
+  }
   function toggleDone(id, ds) {
     const it = items.find(i => i.id === id); if (!it) return;
-    it.doneDates = it.doneDates.includes(ds) ? it.doneDates.filter(x => x !== ds) : [...it.doneDates, ds];
+    const nowDone = !it.doneDates.includes(ds);
+    it.doneDates = nowDone ? [...it.doneDates, ds] : it.doneDates.filter(x => x !== ds);
+    if (it.amount > 0) {
+      if (nowDone) recordBill(it, ds); else if (M()) M().removeLinked(billKey(it, ds));
+      // an unticked direct debit stays unpaid until ticked again
+      if (it.autopay) it.skipDates = nowDone ? (it.skipDates || []).filter(x => x !== ds) : [...new Set([...(it.skipDates || []), ds])];
+    }
     persist(); render();
+  }
+
+  // Direct debits: record each due occurrence (up to today) once, without a tap.
+  function runAutopay() {
+    const t = todayStr();
+    let any = false;
+    for (const it of items) {
+      if (it.type !== 'task' || !it.autopay || !(it.amount > 0) || it.example) continue;
+      let ds = it.date, guard = 0;
+      const floor = addDays(t, -400);
+      if (ds < floor) ds = floor;
+      while (ds <= t && guard++ < 420) {
+        if (occursOn(it, ds) && !it.doneDates.includes(ds) && !(it.skipDates || []).includes(ds)) {
+          it.doneDates.push(ds); recordBill(it, ds); any = true;
+        }
+        ds = addDays(ds, 1);
+      }
+    }
+    if (any) { persist(); render(); }
+  }
+
+  // Unpaid bills due between two dates (inclusive), for the Money tab.
+  function billsBetween(from, to) {
+    const out = [];
+    for (let ds = from, g = 0; ds <= to && g < 40; ds = addDays(ds, 1), g++) {
+      items.forEach(it => {
+        if (it.type === 'task' && it.amount > 0 && occursOn(it, ds) && !isDone(it, ds)) out.push({ item: it, ds, amount: it.amount });
+      });
+    }
+    return out;
   }
 
   // ---------- editor ----------
@@ -218,11 +260,34 @@
     $('p-f-repeat').value = it ? it.repeat : 'none';
     $('p-f-remind').value = String(it ? it.remind : 15);
     $('p-f-notes').value = it ? it.notes : '';
+    fillBillFields(it);
     $('p-delete-btn').hidden = !it;
     $('p-modal').hidden = false;
     setTimeout(() => $('p-f-title').focus(), 30);
   }
   const closeEditor = () => { $('p-modal').hidden = true; editingId = null; };
+
+  function fillBillFields(it) {
+    const cats = M() ? M().categories().filter(c => c.kind === 'expense') : [];
+    const guess = it && it.moneyCat ? it.moneyCat : (window.Daybook.quick ? window.Daybook.quick.guessCategory(it ? it.title : '') : 'other');
+    $('p-f-cat').innerHTML = cats.map(c => `<option value="${esc(c.id)}">${esc(c.name)}</option>`).join('');
+    $('p-f-cat').value = cats.some(c => c.id === guess) ? guess : 'other';
+    $('p-f-amount').value = it && it.amount > 0 ? String(it.amount) : '';
+    $('p-f-autopay').checked = !!(it && it.autopay);
+    syncBillUi();
+  }
+  function syncBillUi() {
+    const has = parseFloat(String($('p-f-amount').value).replace(',', '.')) > 0;
+    form.classList.toggle('has-amount', has);
+  }
+  $('p-f-amount').addEventListener('input', syncBillUi);
+  $('p-f-title').addEventListener('change', () => {
+    // suggest a category from the title until one has been picked
+    if (!editingId && !$('p-f-amount').value && window.Daybook.quick) {
+      const g = window.Daybook.quick.guessCategory($('p-f-title').value);
+      if ([...$('p-f-cat').options].some(o => o.value === g)) $('p-f-cat').value = g;
+    }
+  });
 
   form.addEventListener('submit', e => {
     e.preventDefault();
@@ -237,6 +302,10 @@
       remind: Number($('p-f-remind').value),
       notes: $('p-f-notes').value.trim(),
     };
+    const amt = parseFloat(String($('p-f-amount').value).replace(/[^\d.,]/g, '').replace(',', '.'));
+    data.amount = data.type === 'task' && amt > 0 ? Math.round(amt * 100) / 100 : 0;
+    data.moneyCat = data.amount ? $('p-f-cat').value : '';
+    data.autopay = !!(data.amount && $('p-f-autopay').checked);
     if (!data.title || !data.date) return;
     if (editingId) {
       const it = items.find(i => i.id === editingId);
@@ -247,6 +316,7 @@
       items.push({ id: uid(), doneDates: [], ...data });
     }
     persist(); closeEditor(); selectDay(data.date);
+    if (data.autopay) runAutopay();
     if (data.remind >= 0) maybeAskPermission();
   });
   $('p-cancel-btn').addEventListener('click', closeEditor);
@@ -337,10 +407,13 @@
     const label = it.type === 'task' ? 'Task' : 'Event';
     const sub = `${label} · ${whenText(it, ds)}`;
     if ('Notification' in window && Notification.permission === 'granted') {
-      try {
-        const n = new Notification(it.title, { body: sub, tag: `${it.id}@${ds}` });
-        n.onclick = () => { window.focus(); selectDay(ds); n.close(); };
-      } catch { /* some mobile browsers need a service worker for this */ }
+      const opts = { body: sub, tag: `${it.id}@${ds}`, icon: 'icons/icon-192.png', badge: 'icons/icon-192.png', data: { url: './#plan' } };
+      const direct = () => {
+        try { const n = new Notification(it.title, opts); n.onclick = () => { window.focus(); selectDay(ds); n.close(); }; } catch { /* needs the service worker */ }
+      };
+      if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.ready.then(reg => reg.showNotification(it.title, opts)).catch(direct);
+      } else direct();
     }
     beep();
     showToast({
@@ -461,7 +534,16 @@
   }, 20000);
 
   window.Daybook = window.Daybook || {};
-  window.Daybook.plan = { itemsOn, isDone, todayStr, fmtTime, addDays, openEditor };
+  window.Daybook.plan = {
+    itemsOn, isDone, todayStr, fmtTime, addDays, openEditor, runAutopay, billsBetween,
+    addItem(data) {
+      const it = { id: uid(), type: 'task', time: '', endTime: '', priority: 'normal', repeat: 'none', remind: -1, notes: '', doneDates: [], amount: 0, moneyCat: '', autopay: false, ...data };
+      items.push(it); persist(); render();
+      if (it.remind >= 0) maybeAskPermission();
+      return it.id;
+    },
+    removeItem(id) { items = items.filter(i => i.id !== id); clearFired(id); persist(); render(); },
+  };
 
   updateNotifyBtn();
   render();

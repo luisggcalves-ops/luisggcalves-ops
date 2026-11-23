@@ -34,12 +34,6 @@
     return parseFloat(s);
   }
 
-  function guessCurrency() {
-    const region = (navigator.language || '').split('-')[1] || '';
-    const map = { US: 'USD', GB: 'GBP', BR: 'BRL', CH: 'CHF', CA: 'CAD', AU: 'AUD', JP: 'JPY' };
-    return map[region.toUpperCase()] || 'EUR';
-  }
-
   // ---------- state ----------
   const DEFAULT_CATS = [
     ['groceries', 'Groceries', 'expense'], ['eating', 'Eating out', 'expense'], ['transport', 'Transport', 'expense'],
@@ -53,12 +47,15 @@
     return null;
   }
   let state = load() || seed();
+  // Euros by default. Earlier versions guessed the currency from the browser
+  // language; switch those to euros unless someone picked a currency in Settings.
+  if (!state.currencyChosen && state.currency !== 'EUR') state.currency = 'EUR';
   const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { toast('Could not save. Your browser storage may be full or blocked.'); } };
   persist();
 
   function seed() {
     const s = {
-      version: 1, currency: guessCurrency(),
+      version: 1, currency: 'EUR',
       goal: { name: 'Trip to Japan', target: 5000, start: 1500, example: true },
       categories: DEFAULT_CATS.map(c => ({ ...c })), exampleBudgets: true, tx: [],
     };
@@ -505,7 +502,7 @@
     state.goal = { name: $('s-goal-name').value.trim(), target: isFinite(t) && t > 0 ? round2(t) : 0, start: isFinite(st) && st > 0 ? round2(st) : 0 };
     persist();
   }));
-  $('s-currency').addEventListener('change', e => { state.currency = e.target.value; persist(); });
+  $('s-currency').addEventListener('change', e => { state.currency = e.target.value; state.currencyChosen = true; persist(); });
   $('settings-btn').addEventListener('click', openSettings);
   $('goal-edit').addEventListener('click', () => { openSettings(); setTimeout(() => $('s-goal-name').focus(), 30); });
   $('settings-close').addEventListener('click', closeSettings);
@@ -673,7 +670,7 @@
     try {
       const s = JSON.parse(await f.text());
       if (!s || !Array.isArray(s.tx) || !Array.isArray(s.categories)) throw new Error('bad');
-      state = { version: 1, currency: s.currency || state.currency, goal: s.goal || state.goal, categories: s.categories, tx: s.tx.filter(t => t && t.id && t.date && isFinite(t.amount)) };
+      state = { version: 1, currency: s.currency || state.currency, currencyChosen: !!s.currencyChosen, goal: s.goal || state.goal, categories: s.categories, tx: s.tx.filter(t => t && t.id && t.date && isFinite(t.amount)) };
       persist(); renderAll();
       toast(`Restored ${state.tx.length} entries`);
     } catch { toast('Choose a backup file downloaded from this page (.json).'); }

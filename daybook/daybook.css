@@ -401,6 +401,35 @@ tr:hover .row-del, .row-del:focus-visible { opacity: 1; }
 .opt { font-style: normal; text-transform: none; letter-spacing: 0; font-weight: 400; }
 form[data-type="event"] .task-only { display: none; }
 form[data-type="task"] .event-only { display: none; }
+.bill-only { display: none; }
+form[data-type="task"].has-amount .bill-only { display: flex; }
+form[data-type="task"].has-amount p.bill-only { display: block; }
+.hint.full, .check-field.full { grid-column: 1 / -1; margin-top: 0; }
+.check-field { display: flex; align-items: flex-start; gap: 0.6rem; font-size: 0.86rem; color: var(--text-2); cursor: pointer; }
+.check-field input { width: 18px; height: 18px; margin-top: 1px; accent-color: var(--gold); flex: none; }
+
+/* ===== Quick add ===== */
+.quick {
+  position: relative; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 0.5rem;
+  margin-top: 1rem; padding: 0.35rem 0.4rem 0.35rem 0.9rem;
+  border: 1px solid var(--line-2); border-radius: 24px; background: var(--panel);
+  transition: border-color 0.18s;
+}
+.quick:focus-within { border-color: var(--gold); }
+.quick-plus { font-family: var(--f-display); font-size: 1.5rem; line-height: 1; color: var(--gold); }
+.quick input { border: none; background: transparent; padding: 0.45rem 0.2rem; font-size: 0.95rem; }
+.quick input:focus { border: none; }
+.quick input:focus-visible { outline: none; }
+.quick-preview {
+  grid-column: 1 / -1; font-size: 0.8rem; color: var(--text-2); padding: 0 0.4rem 0.35rem 1.6rem;
+  display: flex; flex-wrap: wrap; gap: 0.35rem; align-items: center;
+}
+.quick-preview:empty { display: none; }
+.quick-preview .qp-kind { font-size: 0.66rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: #120e05; background: var(--gold); border-radius: 999px; padding: 1px 8px; }
+.quick-preview .qp-kind.plan { background: var(--ivory); }
+.quick-preview .qp-part { color: var(--text); }
+.quick-preview .qp-sep { color: var(--muted); }
+.quick-preview .qp-tip { color: var(--muted); }
 
 .set-block { padding-block: 1rem; border-top: 1px solid var(--line); }
 .set-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.7rem; margin-bottom: 0.6rem; }

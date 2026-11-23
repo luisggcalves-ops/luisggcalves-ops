@@ -132,5 +132,15 @@
   setInterval(() => { if (current === 'plan' && !document.hidden) renderToday(); }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && current === 'plan') renderToday(); });
 
+  // Direct debits from Plan land in Money on their day
+  P.runAutopay();
+  setInterval(() => { if (!document.hidden) P.runAutopay(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) P.runAutopay(); });
+
+  // Offline copy + notifications on Android
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+
   show(location.hash.slice(1));
 })();

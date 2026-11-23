@@ -5,7 +5,7 @@
 */
 (() => {
   'use strict';
-  const changed = () => document.dispatchEvent(new CustomEvent('daybook:change'));
+  const changed = () => document.dispatchEvent(new CustomEvent('daybook:change', { detail: { source: 'money' } }));
 
   const KEY = 'spending.v1';
   const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
@@ -114,6 +114,17 @@
       $('m-hero-amount').textContent = fmt0(spent);
       $('m-hero-unit').textContent = 'spent';
       line = spent ? 'Add your income to see how much you keep.' : 'Nothing here yet. Add your first entry in the sheet below.';
+    }
+    const P = window.Daybook && window.Daybook.plan;
+    if (P && isCurrent) {
+      const t = todayStr();
+      const bills = P.billsBetween(t, `${view}-${pad(daysIn(view))}`);
+      if (bills.length) {
+        const sum = round2(bills.reduce((a, b) => a + b.amount, 0));
+        line += bills.length === 1
+          ? ` <span class="bills-line">One bill of <strong>${esc(fmt0(sum))}</strong> still to come.</span>`
+          : ` <span class="bills-line"><strong>${esc(fmt0(sum))}</strong> in ${bills.length} bills still to come.</span>`;
+      }
     }
     $('m-hero-line').innerHTML = line;
 
@@ -683,7 +694,27 @@
     month: () => { const m = monthOf(todayStr()); return totals(monthTx(m)); },
     fmt, fmt0,
     refresh: renderDaily,
+    categories: () => state.categories.map(c => ({ id: c.id, name: c.name, kind: c.kind })),
+    addTx(tx) {
+      const t = { id: uid(), date: tx.date || todayStr(), desc: tx.desc, cat: catById(tx.cat) ? tx.cat : 'other', amount: round2(Math.abs(tx.amount)) };
+      state.tx.push(t); persist(); renderAll();
+      return t.id;
+    },
+    removeTx(id) { state.tx = state.tx.filter(t => t.id !== id); persist(); renderAll(); },
+    // payments recorded from Plan bills; the key stops double-recording
+    addLinked(key, tx) {
+      if (state.tx.some(t => t.link === key)) return;
+      state.tx.push({ id: uid(), date: tx.date, desc: tx.desc, cat: catById(tx.cat) ? tx.cat : 'other', amount: round2(Math.abs(tx.amount)), link: key });
+      persist(); renderAll();
+    },
+    removeLinked(key) {
+      const before = state.tx.length;
+      state.tx = state.tx.filter(t => t.link !== key);
+      if (state.tx.length !== before) { persist(); renderAll(); }
+    },
   };
+  // a ticked bill or a new bill in Plan changes the numbers here
+  document.addEventListener('daybook:change', e => { if (e.detail && e.detail.source === 'plan') renderSummaries(); });
 
   // ---------- go ----------
   $('m-e-date').value = defaultEntryDate();

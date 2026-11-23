@@ -45,6 +45,15 @@
 </header>
 
 <main>
+<!-- ======================= QUICK ADD (both tabs) ======================= -->
+<form class="quick" id="q-form" autocomplete="off">
+  <span class="quick-plus" aria-hidden="true">+</span>
+  <input id="q-input" type="text" enterkeyhint="done" autocapitalize="sentences"
+         placeholder="Quick add: “coffee 3.50” or “dentist fri 3pm”" aria-label="Quick add" aria-describedby="q-preview" />
+  <button type="submit" class="btn btn-gold btn-sm" id="q-add">Add</button>
+  <div class="quick-preview" id="q-preview" aria-live="polite"></div>
+</form>
+
 <!-- ======================= PLAN ======================= -->
 <section id="view-plan" class="view" aria-label="Plan">
   <div id="p-example-banner" class="banner" hidden>
@@ -206,7 +215,7 @@
   </div>
 </section>
 
-<footer class="foot">Also yours: <a href="../">LiftLog</a></footer>
+<footer class="foot">Workouts live in <a href="../">LiftLog</a></footer>
 </main>
 
 <!-- ======================= PLAN: EDIT DIALOG ======================= -->
@@ -228,6 +237,10 @@
         <label class="field task-only"><span>Priority</span>
           <select id="p-f-priority"><option value="low">Low</option><option value="normal" selected>Normal</option><option value="high">High</option></select>
         </label>
+        <label class="field task-only"><span>Amount <i class="opt">(for bills)</i></span><input id="p-f-amount" type="text" inputmode="decimal" placeholder="e.g. 750" /></label>
+        <label class="field bill-only"><span>Money category</span><select id="p-f-cat"></select></label>
+        <label class="check-field full bill-only"><input type="checkbox" id="p-f-autopay" /><span>Direct debit: record it in Money automatically on the day</span></label>
+        <p class="hint full bill-only">Ticking this task off records the payment in Money.</p>
         <label class="field"><span>Repeats</span>
           <select id="p-f-repeat">
             <option value="none">Doesn't repeat</option>
@@ -307,6 +320,7 @@
 
 <script src="plan.js"></script>
 <script src="money.js"></script>
+<script src="quick.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

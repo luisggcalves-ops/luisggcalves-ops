@@ -31,6 +31,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M15 8.6a4 4 0 1 0 0 6.8M7.5 11h6M7.5 13.4h6"/></svg>
         <span>Money</span>
       </a>
+      <a href="#debts" class="tab" data-view="debts">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="6" width="17" height="12" rx="2.5"/><path d="M7 10.5h.01M7 13.5h.01M10.5 12l2 2 4-4.5"/></svg>
+        <span>Debts</span>
+      </a>
     </nav>
 
     <div class="top-actions" data-for="plan">
@@ -40,6 +44,9 @@
     <div class="top-actions" data-for="money" hidden>
       <button class="btn btn-ghost" id="m-settings-btn">Settings</button>
       <button class="btn btn-gold" id="m-excel-btn">Excel</button>
+    </div>
+    <div class="top-actions" data-for="debts" hidden>
+      <button class="btn btn-gold" id="d-add-btn">+ Add debt</button>
     </div>
   </div>
 </header>
@@ -215,6 +222,40 @@
   </div>
 </section>
 
+<!-- ======================= DEBTS ======================= -->
+<section id="view-debts" class="view" aria-label="Debts" hidden>
+  <div id="d-example-banner" class="banner" hidden>
+    <span>These are example debts so you can see how it works.</span>
+    <button class="btn btn-ghost btn-sm" id="d-clear-examples-btn">Clear examples</button>
+  </div>
+  <section class="hero">
+    <div class="hero-main">
+      <div class="eyebrow">Debts</div>
+      <div class="hero-figure"><span id="d-hero-amount"></span><span class="hero-unit" id="d-hero-unit"></span></div>
+      <p class="hero-line" id="d-hero-line"></p>
+    </div>
+    <div class="goal">
+      <div class="goal-head"><span class="eyebrow">Debt-free by</span><span class="muted" id="d-free-pace"></span></div>
+      <div class="goal-name" id="d-free-date"></div>
+      <div class="goal-track" role="progressbar" id="d-total-bar" aria-valuemin="0" aria-valuemax="100"><div class="goal-fill" id="d-total-fill"></div></div>
+      <div class="goal-meta"><span id="d-total-paid"></span><span id="d-total-pct"></span></div>
+    </div>
+  </section>
+
+  <section class="debt-section">
+    <div class="section-head"><h2>You owe</h2><span class="muted" id="d-owe-sub"></span></div>
+    <div class="debt-grid" id="d-owe-list"></div>
+  </section>
+  <section class="debt-section" id="d-owed-section" hidden>
+    <div class="section-head"><h2>Owed to you</h2><span class="muted" id="d-owed-sub"></span></div>
+    <div class="debt-grid" id="d-owed-list"></div>
+  </section>
+  <section class="debt-section" id="d-cleared-section" hidden>
+    <div class="section-head"><h2>Cleared</h2></div>
+    <div class="debt-grid" id="d-cleared-list"></div>
+  </section>
+</section>
+
 <footer class="foot">Workouts live in <a href="../">LiftLog</a></footer>
 </main>
 
@@ -316,10 +357,39 @@
   </div>
 </div>
 
+<!-- ======================= DEBTS: EDIT DIALOG ======================= -->
+<div class="modal-backdrop" id="d-modal" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="d-modal-title">
+    <form id="d-form" autocomplete="off">
+      <div class="modal-head"><h2 id="d-modal-title">Add a debt</h2></div>
+      <div class="form-grid">
+        <label class="field full"><span>Name</span><input id="d-f-name" type="text" required placeholder="e.g. Credit card, Car loan, Money from Rui" /></label>
+        <label class="field"><span>Type</span>
+          <select id="d-f-kind"><option value="owe">I owe this</option><option value="owed">Someone owes me</option></select>
+        </label>
+        <label class="field"><span id="d-f-who-label">Lender (optional)</span><input id="d-f-who" type="text" placeholder="e.g. Bank, Rui" /></label>
+        <label class="field"><span>Total amount</span><input id="d-f-total" type="text" inputmode="decimal" required placeholder="2000" /></label>
+        <label class="field"><span>Already paid <i class="opt">(before today)</i></span><input id="d-f-before" type="text" inputmode="decimal" placeholder="0" /></label>
+        <label class="field"><span>Monthly payment <i class="opt">(optional)</i></span><input id="d-f-monthly" type="text" inputmode="decimal" placeholder="150" /></label>
+        <label class="field"><span>Payment day <i class="opt">(1–31)</i></span><input id="d-f-day" type="number" min="1" max="31" inputmode="numeric" placeholder="5" /></label>
+        <label class="check-field full" id="d-f-plan-row" hidden><input type="checkbox" id="d-f-plan" checked /><span>Add it to Plan as a monthly bill. Ticking the bill ticks off a payment here.</span></label>
+        <label class="field full"><span>Notes <i class="opt">(optional)</i></span><input id="d-f-note" type="text" /></label>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-danger" id="d-delete" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn btn-ghost" id="d-cancel">Cancel</button>
+        <button type="submit" class="btn btn-gold">Save</button>
+      </div>
+    </form>
+  </div>
+</div>
+
 <div class="toasts" id="toasts" aria-live="polite"></div>
 
 <script src="plan.js"></script>
 <script src="money.js"></script>
+<script src="debts.js"></script>
 <script src="quick.js"></script>
 <script src="app.js"></script>
 </body>

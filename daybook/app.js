@@ -7,7 +7,7 @@
   const $ = id => document.getElementById(id);
   const P = window.Daybook.plan;
   const M = window.Daybook.money;
-  const VIEWS = ['plan', 'money'];
+  const VIEWS = ['plan', 'money', 'debts'];
   const VIEW_KEY = 'daybook.view';
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -31,6 +31,7 @@
     try { localStorage.setItem(VIEW_KEY, view); } catch { /* ignore */ }
     if (location.hash !== '#' + view) history.replaceState(null, '', '#' + view);
     if (view === 'money') M.refresh();
+    if (view === 'debts' && window.Daybook.debts) window.Daybook.debts.render();
     if (view === 'plan') renderToday();
     if (scroll && changedView) window.scrollTo({ top: 0 });
   }

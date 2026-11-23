@@ -695,6 +695,7 @@
     fmt, fmt0,
     refresh: renderDaily,
     categories: () => state.categories.map(c => ({ id: c.id, name: c.name, kind: c.kind })),
+    ensureCategory(c) { if (!catById(c.id)) { state.categories.push({ id: c.id, name: c.name, kind: c.kind, budget: 0 }); persist(); } },
     addTx(tx) {
       const t = { id: uid(), date: tx.date || todayStr(), desc: tx.desc, cat: catById(tx.cat) ? tx.cat : 'other', amount: round2(Math.abs(tx.amount)) };
       state.tx.push(t); persist(); renderAll();

@@ -5,6 +5,7 @@
 */
 (() => {
   'use strict';
+  const changed = () => document.dispatchEvent(new CustomEvent('daybook:change'));
 
   const KEY = 'spending.v1';
   const XLSX_URL = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
@@ -50,7 +51,7 @@
   // Euros by default. Earlier versions guessed the currency from the browser
   // language; switch those to euros unless someone picked a currency in Settings.
   if (!state.currencyChosen && state.currency !== 'EUR') state.currency = 'EUR';
-  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { toast('Could not save. Your browser storage may be full or blocked.'); } };
+  const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch { toast('Could not save. Your browser storage may be full or blocked.'); } changed(); };
   persist();
 
   function seed() {
@@ -96,36 +97,35 @@
   function renderHero() {
     const { spent, income } = totals(monthTx(view));
     const isCurrent = view === monthOf(todayStr());
-    $('month-label').textContent = monthName(view, { month: 'short', year: 'numeric' });
-    $('hero-eyebrow').textContent = monthName(view);
-    const fig = document.querySelector('.hero-figure');
+    $('m-hero-eyebrow').textContent = monthName(view);
+    const fig = document.querySelector('#view-money .hero-figure');
     let line;
     if (income > 0) {
       const left = round2(income - spent);
       fig.classList.toggle('over', left < 0);
-      $('hero-amount').textContent = fmt0(Math.abs(left));
-      $('hero-unit').textContent = left < 0 ? 'over' : (isCurrent ? 'left this month' : 'kept');
-      const kept = Math.round((left / income) * 100);
+      $('m-hero-amount').textContent = fmt0(Math.abs(left));
+      $('m-hero-unit').textContent = left < 0 ? 'over' : (isCurrent ? 'left this month' : 'kept');
+      const kept = Math.floor((left / income) * 100);
       line = left >= 0
         ? `You've kept <strong>${kept}%</strong> of what came in. Spent <strong>${fmt0(spent)}</strong> of <strong>${fmt0(income)}</strong>.`
         : `Spending is <strong>${fmt0(-left)}</strong> above income this month. A few quiet days will turn it around.`;
     } else {
       fig.classList.remove('over');
-      $('hero-amount').textContent = fmt0(spent);
-      $('hero-unit').textContent = 'spent';
+      $('m-hero-amount').textContent = fmt0(spent);
+      $('m-hero-unit').textContent = 'spent';
       line = spent ? 'Add your income to see how much you keep.' : 'Nothing here yet. Add your first entry in the sheet below.';
     }
-    $('hero-line').innerHTML = line;
+    $('m-hero-line').innerHTML = line;
 
     const g = state.goal || {};
     const all = totals(state.tx);
     const saved = Math.max(0, round2((g.start || 0) + all.income - all.spent));
     const pct = g.target > 0 ? Math.min(100, Math.round((saved / g.target) * 100)) : 0;
-    $('goal-name').textContent = g.name || 'Set a goal';
-    $('goal-saved').textContent = g.target > 0 ? `${fmt0(saved)} of ${fmt0(g.target)}` : 'Choose a target in Settings';
-    $('goal-pct').textContent = g.target > 0 ? (pct >= 100 ? 'Reached' : `${pct}%`) : '';
-    $('goal-bar').setAttribute('aria-valuenow', String(pct));
-    requestAnimationFrame(() => { $('goal-fill').style.width = pct + '%'; });
+    $('m-goal-name').textContent = g.name || 'Set a goal';
+    $('m-goal-saved').textContent = g.target > 0 ? `${fmt0(saved)} of ${fmt0(g.target)}` : 'Choose a target in Settings';
+    $('m-goal-pct').textContent = g.target > 0 ? (pct >= 100 ? 'Reached' : `${pct}%`) : '';
+    $('m-goal-bar').setAttribute('aria-valuenow', String(pct));
+    requestAnimationFrame(() => { $('m-goal-fill').style.width = pct + '%'; });
   }
 
   function renderTiles() {
@@ -161,7 +161,7 @@
         : { label: 'Per day', value: fmt0(dayLimit ? spent / dayLimit : 0), delta: 'average so far' },
       { label: 'No-spend days', value: String(noSpend), delta: noSpend ? `out of ${dayLimit} day${dayLimit === 1 ? '' : 's'}` : 'Try one this week', cls: noSpend ? 'good' : '' },
     ];
-    $('tiles').innerHTML = tiles.map(t => `<div class="tile"><div class="tile-label">${esc(t.label)}</div><div class="tile-value">${esc(t.value)}</div><div class="tile-delta ${t.cls || ''}">${esc(t.delta || '')}</div></div>`).join('');
+    $('m-tiles').innerHTML = tiles.map(t => `<div class="tile"><div class="tile-label">${esc(t.label)}</div><div class="tile-value">${esc(t.value)}</div><div class="tile-delta ${t.cls || ''}">${esc(t.delta || '')}</div></div>`).join('');
   }
 
   // ---------- sheet ----------
@@ -186,12 +186,12 @@
       if (b.dataset.key === sort.key) b.setAttribute('aria-sort', sort.dir === 'asc' ? 'ascending' : 'descending');
       else b.removeAttribute('aria-sort');
     });
-    $('cat-filter').innerHTML = `<option value="">All categories</option>` + catOptions(filterCat);
-    $('cat-filter').value = filterCat;
-    $('e-cat').innerHTML = catOptions($('e-cat').value || 'groceries');
+    $('m-cat-filter').innerHTML = `<option value="">All categories</option>` + catOptions(filterCat);
+    $('m-cat-filter').value = filterCat;
+    $('m-e-cat').innerHTML = catOptions($('m-e-cat').value || 'groceries');
 
     const rows = visibleRows();
-    const body = $('sheet-body');
+    const body = $('m-sheet-body');
     if (!rows.length) {
       body.innerHTML = `<tr><td colspan="6" class="sheet-empty">${monthTx(view).length ? 'No entries match your search.' : `No entries for ${esc(monthName(view, { month: 'long' }))} yet. Add one above.`}</td></tr>`;
     } else {
@@ -212,7 +212,7 @@
 
   function renderFoot(rows = visibleRows()) {
     const { spent, income } = totals(rows);
-    $('sheet-foot').innerHTML = `<tr>
+    $('m-sheet-foot').innerHTML = `<tr>
       <td class="rn">&#931;</td>
       <td colspan="2">${rows.length} entr${rows.length === 1 ? 'y' : 'ies'}${filterCat || search ? ' shown' : ''}</td>
       <td style="text-align:right">${income ? 'Income<br>Spent' : 'Spent'}</td>
@@ -221,7 +221,7 @@
   }
 
   // live edits: update data + summaries without rebuilding rows (keeps focus while tabbing)
-  const body = $('sheet-body');
+  const body = $('m-sheet-body');
   body.addEventListener('change', e => {
     const el = e.target, tr = el.closest('tr'); if (!tr || !el.dataset.f) return;
     const t = state.tx.find(x => x.id === tr.dataset.id); if (!t) return;
@@ -278,26 +278,26 @@
     sort = sort.key === k ? { key: k, dir: sort.dir === 'asc' ? 'desc' : 'asc' } : { key: k, dir: k === 'date' || k === 'amount' ? 'desc' : 'asc' };
     renderSheet();
   }));
-  $('search').addEventListener('input', e => { search = e.target.value; renderSheet(); });
-  $('cat-filter').addEventListener('change', e => { filterCat = e.target.value; renderSheet(); });
+  $('m-search').addEventListener('input', e => { search = e.target.value; renderSheet(); });
+  $('m-cat-filter').addEventListener('change', e => { filterCat = e.target.value; renderSheet(); });
 
   // entry row
   function defaultEntryDate() {
     const t = todayStr();
     return monthOf(t) === view ? t : `${view}-01`;
   }
-  $('entry-form').addEventListener('submit', e => {
+  $('m-entry-form').addEventListener('submit', e => {
     e.preventDefault();
-    const amount = parseAmount($('e-amount').value);
-    const desc = $('e-desc').value.trim();
-    if (!desc) { $('e-desc').focus(); return; }
-    if (!isFinite(amount) || amount === 0) { toast('Enter an amount, like 12.50'); $('e-amount').focus(); return; }
-    const tx = { id: uid(), date: $('e-date').value || defaultEntryDate(), desc, cat: $('e-cat').value, amount: round2(Math.abs(amount)) };
+    const amount = parseAmount($('m-e-amount').value);
+    const desc = $('m-e-desc').value.trim();
+    if (!desc) { $('m-e-desc').focus(); return; }
+    if (!isFinite(amount) || amount === 0) { toast('Enter an amount, like 12.50'); $('m-e-amount').focus(); return; }
+    const tx = { id: uid(), date: $('m-e-date').value || defaultEntryDate(), desc, cat: $('m-e-cat').value, amount: round2(Math.abs(amount)) };
     state.tx.push(tx); persist();
     if (monthOf(tx.date) !== view) view = monthOf(tx.date);
-    $('e-desc').value = ''; $('e-amount').value = '';
+    $('m-e-desc').value = ''; $('m-e-amount').value = '';
     renderAll();
-    $('e-desc').focus();
+    $('m-e-desc').focus();
   });
 
   // ---------- categories breakdown ----------
@@ -310,9 +310,9 @@
       .sort((a, b) => b.spent - a.spent);
     const maxSpent = Math.max(1, ...cats.map(c => c.spent));
     const budgeted = cats.filter(c => c.budget > 0).length;
-    $('cat-sub').textContent = budgeted ? `${budgeted} with a budget` : 'Set budgets in Settings';
-    if (!cats.length) { $('cat-list').innerHTML = '<p class="empty">Spending by category will show here.</p>'; return; }
-    $('cat-list').innerHTML = cats.map(c => {
+    $('m-cat-sub').textContent = budgeted ? `${budgeted} with a budget` : 'Set budgets in Settings';
+    if (!cats.length) { $('m-cat-list').innerHTML = '<p class="empty">Spending by category will show here.</p>'; return; }
+    $('m-cat-list').innerHTML = cats.map(c => {
       let width, note, over = false;
       if (c.budget > 0) {
         width = Math.min(1, c.spent / c.budget);
@@ -341,8 +341,8 @@
   const compact = n => n >= 1000 ? (n / 1000).toFixed(n % 1000 ? 1 : 0).replace(/\.0$/, '') + 'K' : String(Math.round(n));
 
   function renderDaily() {
-    const box = $('daily-chart');
-    const tip = $('daily-tip');
+    const box = $('m-daily-chart');
+    const tip = $('m-daily-tip');
     box.querySelector('svg')?.remove();
     const days = daysIn(view);
     const isCurrent = view === monthOf(todayStr());
@@ -389,7 +389,7 @@
     box.insertAdjacentHTML('afterbegin', s);
     const total = sums.reduce((a, b) => a + b, 0);
     const counted = isCurrent ? today : days;
-    $('daily-sub').textContent = `avg ${fmt0(total / Math.max(1, counted))} a day`;
+    $('m-daily-sub').textContent = `avg ${fmt0(total / Math.max(1, counted))} a day`;
 
     box.querySelectorAll('.hit').forEach(h => {
       const i = Number(h.dataset.i);
@@ -414,16 +414,16 @@
   // ---------- render ----------
   function renderSummaries() {
     renderHero(); renderTiles(); renderCats(); renderDaily();
-    $('example-banner').hidden = !state.tx.some(t => t.example);
+    $('m-example-banner').hidden = !state.tx.some(t => t.example);
   }
   function renderAll() {
     renderSummaries(); renderSheet();
-    if (!$('e-date').value || monthOf($('e-date').value) !== view) $('e-date').value = defaultEntryDate();
+    if (!$('m-e-date').value || monthOf($('m-e-date').value) !== view) $('m-e-date').value = defaultEntryDate();
   }
 
-  $('prev-month').addEventListener('click', () => { view = shiftMonth(view, -1); renderAll(); });
-  $('next-month').addEventListener('click', () => { view = shiftMonth(view, 1); renderAll(); });
-  $('clear-examples-btn').addEventListener('click', () => {
+  $('m-prev-month').addEventListener('click', () => { view = shiftMonth(view, -1); renderAll(); });
+  $('m-next-month').addEventListener('click', () => { view = shiftMonth(view, 1); renderAll(); });
+  $('m-clear-examples-btn').addEventListener('click', () => {
     state.tx = state.tx.filter(t => !t.example);
     if (state.goal?.example) state.goal = { name: '', target: 0, start: 0 };
     if (state.exampleBudgets) { state.categories.forEach(c => { c.budget = 0; }); state.exampleBudgets = false; }
@@ -449,17 +449,17 @@
   // ---------- settings ----------
   function openSettings() {
     const g = state.goal || {};
-    $('s-goal-name').value = g.name || '';
-    $('s-goal-target').value = g.target || '';
-    $('s-goal-start').value = g.start || '';
-    $('s-currency').value = state.currency;
+    $('m-s-goal-name').value = g.name || '';
+    $('m-s-goal-target').value = g.target || '';
+    $('m-s-goal-start').value = g.start || '';
+    $('m-s-currency').value = state.currency;
     renderCatEdit();
-    $('settings').hidden = false;
+    $('m-settings').hidden = false;
   }
-  function closeSettings() { $('settings').hidden = true; renderAll(); }
+  function closeSettings() { $('m-settings').hidden = true; renderAll(); }
 
   function renderCatEdit() {
-    $('cat-edit').innerHTML = state.categories.map(c => `
+    $('m-cat-edit').innerHTML = state.categories.map(c => `
       <div class="cat-edit-row" data-id="${esc(c.id)}">
         <input type="text" data-f="name" value="${esc(c.name)}" aria-label="Category name" />
         <select data-f="kind" aria-label="Type"><option value="expense"${c.kind === 'expense' ? ' selected' : ''}>Spending</option><option value="income"${c.kind === 'income' ? ' selected' : ''}>Income</option></select>
@@ -468,7 +468,7 @@
       </div>`).join('');
   }
 
-  $('cat-edit').addEventListener('change', e => {
+  $('m-cat-edit').addEventListener('change', e => {
     const row = e.target.closest('.cat-edit-row'); const c = catById(row.dataset.id); if (!c) return;
     const f = e.target.dataset.f;
     if (f === 'name') c.name = e.target.value.trim() || c.name;
@@ -476,7 +476,7 @@
     if (f === 'budget') { const n = parseAmount(e.target.value); c.budget = isFinite(n) && n > 0 ? round2(n) : 0; state.exampleBudgets = false; }
     persist();
   });
-  $('cat-edit').addEventListener('click', e => {
+  $('m-cat-edit').addEventListener('click', e => {
     const btn = e.target.closest('.row-del'); if (!btn) return;
     const row = btn.closest('.cat-edit-row'); const c = catById(row.dataset.id); if (!c) return;
     if (btn.dataset.confirm !== '1') { btn.dataset.confirm = '1'; btn.textContent = '?'; btn.title = 'Tap again to delete'; setTimeout(() => { btn.dataset.confirm = ''; btn.innerHTML = '&#215;'; }, 3000); return; }
@@ -488,26 +488,26 @@
     persist(); renderCatEdit();
     toast(moved ? `Deleted ${c.name}. ${moved} entr${moved === 1 ? 'y moved' : 'ies moved'} to ${catById(fallback).name}.` : `Deleted ${c.name}.`);
   });
-  $('new-cat-form').addEventListener('submit', e => {
+  $('m-new-cat-form').addEventListener('submit', e => {
     e.preventDefault();
-    const name = $('nc-name').value.trim(); if (!name) return;
-    const kind = $('nc-kind').value;
-    const n = parseAmount($('nc-budget').value);
+    const name = $('m-nc-name').value.trim(); if (!name) return;
+    const kind = $('m-nc-kind').value;
+    const n = parseAmount($('m-nc-budget').value);
     state.categories.push({ id: uid(), name, kind, budget: kind === 'expense' && isFinite(n) && n > 0 ? round2(n) : 0 });
-    $('nc-name').value = ''; $('nc-budget').value = '';
+    $('m-nc-name').value = ''; $('m-nc-budget').value = '';
     persist(); renderCatEdit();
   });
-  ['s-goal-name', 's-goal-target', 's-goal-start'].forEach(id => $(id).addEventListener('change', () => {
-    const t = parseAmount($('s-goal-target').value), st = parseAmount($('s-goal-start').value);
-    state.goal = { name: $('s-goal-name').value.trim(), target: isFinite(t) && t > 0 ? round2(t) : 0, start: isFinite(st) && st > 0 ? round2(st) : 0 };
+  ['m-s-goal-name', 'm-s-goal-target', 'm-s-goal-start'].forEach(id => $(id).addEventListener('change', () => {
+    const t = parseAmount($('m-s-goal-target').value), st = parseAmount($('m-s-goal-start').value);
+    state.goal = { name: $('m-s-goal-name').value.trim(), target: isFinite(t) && t > 0 ? round2(t) : 0, start: isFinite(st) && st > 0 ? round2(st) : 0 };
     persist();
   }));
-  $('s-currency').addEventListener('change', e => { state.currency = e.target.value; state.currencyChosen = true; persist(); });
-  $('settings-btn').addEventListener('click', openSettings);
-  $('goal-edit').addEventListener('click', () => { openSettings(); setTimeout(() => $('s-goal-name').focus(), 30); });
-  $('settings-close').addEventListener('click', closeSettings);
-  $('settings').addEventListener('click', e => { if (e.target.id === 'settings') closeSettings(); });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('settings').hidden) closeSettings(); });
+  $('m-s-currency').addEventListener('change', e => { state.currency = e.target.value; state.currencyChosen = true; persist(); });
+  $('m-settings-btn').addEventListener('click', openSettings);
+  $('m-goal-edit').addEventListener('click', () => { openSettings(); setTimeout(() => $('m-s-goal-name').focus(), 30); });
+  $('m-settings-close').addEventListener('click', closeSettings);
+  $('m-settings').addEventListener('click', e => { if (e.target.id === 'm-settings') closeSettings(); });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('m-settings').hidden) closeSettings(); });
 
   // ---------- files ----------
   function download(name, blob) {
@@ -592,8 +592,8 @@
     download(`spending-${todayStr()}.xlsx`, new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     toast('Excel file downloaded');
   }
-  $('excel-btn').addEventListener('click', exportExcel);
-  $('excel-btn-2').addEventListener('click', exportExcel);
+  $('m-excel-btn').addEventListener('click', exportExcel);
+  $('m-excel-btn-2').addEventListener('click', exportExcel);
 
   // Import any sheet with Date / Description / Category / Amount-like columns
   function toYmd(v) {
@@ -658,14 +658,14 @@
       toast('That file could not be read. Try an .xlsx or .csv file.');
     }
   }
-  $('import-btn').addEventListener('click', () => $('import-file').click());
-  $('import-file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importSheet(f); });
+  $('m-import-btn').addEventListener('click', () => $('m-import-file').click());
+  $('m-import-file').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) importSheet(f); });
 
-  $('backup-btn').addEventListener('click', () => {
+  $('m-backup-btn').addEventListener('click', () => {
     download(`spending-backup-${todayStr()}.json`, new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' }));
   });
-  $('restore-btn').addEventListener('click', () => $('restore-file').click());
-  $('restore-file').addEventListener('change', async e => {
+  $('m-restore-btn').addEventListener('click', () => $('m-restore-file').click());
+  $('m-restore-file').addEventListener('change', async e => {
     const f = e.target.files[0]; e.target.value = ''; if (!f) return;
     try {
       const s = JSON.parse(await f.text());
@@ -676,7 +676,16 @@
     } catch { toast('Choose a backup file downloaded from this page (.json).'); }
   });
 
+  // ---------- shared with the Plan tab ----------
+  window.Daybook = window.Daybook || {};
+  window.Daybook.money = {
+    spentOn: ds => round2(state.tx.filter(t => t.date === ds && kindOf(t) === 'expense').reduce((a, t) => a + t.amount, 0)),
+    month: () => { const m = monthOf(todayStr()); return totals(monthTx(m)); },
+    fmt, fmt0,
+    refresh: renderDaily,
+  };
+
   // ---------- go ----------
-  $('e-date').value = defaultEntryDate();
+  $('m-e-date').value = defaultEntryDate();
   renderAll();
 })();

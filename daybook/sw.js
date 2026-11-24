@@ -3,7 +3,7 @@
   notifications (Android needs them to come from here).
   Online it always fetches the newest files first, so updates show up straight away.
 */
-const CACHE = 'daybook-v4';
+const CACHE = 'daybook-v5';
 const CORE = [
   './', './index.html', './daybook.css', './plan.js', './money.js', './debts.js', './quick.js', './app.js',
   './manifest.webmanifest', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',

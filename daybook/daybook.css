@@ -532,3 +532,66 @@ body:has(.modal-backdrop:not([hidden])) .toasts { bottom: auto; top: calc(12px +
 }
 @media (prefers-reduced-motion: reduce) { .debt.just-cleared .stamp { animation: none; } }
 
+/* ================= CALMER LAYOUT =================
+   Fewer outlines and dividers, more air, one title style per panel. */
+main { padding-top: 0.75rem; }
+.quick { border-color: var(--line); background: transparent; margin-top: 0.75rem; }
+.banner { border: none; background: var(--panel); margin-top: 1rem; }
+.hero { border-bottom: none; padding-block: 2rem 2rem; margin-bottom: 0.5rem; gap: 2rem; }
+.hero-line { color: var(--text-2); line-height: 1.6; }
+.goal { border-color: var(--line); background: var(--panel); }
+.layout { gap: 2rem; }
+.side { gap: 2rem; }
+.panel { border-color: transparent; padding: 1.35rem; }
+.panel-title { font-size: 1.3rem; margin-bottom: 1rem; }
+.panel-head { margin-bottom: 1.1rem; }
+.day-head { margin-bottom: 1.1rem; }
+
+.item { border-top: none; border-right: none; border-bottom: none; background: transparent; padding: 0.6rem 0.4rem 0.6rem 0.8rem; border-radius: 0; }
+.item + .item { box-shadow: 0 -1px 0 var(--line); }
+.item-list { gap: 0; }
+.group-label { margin: 0.9rem 0 0.3rem; }
+.group-label:first-child { margin-top: 0; }
+
+.tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); border: none; margin: 0 0 2rem; gap: 1.25rem; }
+.tiles .tile { border: none; padding: 0; }
+.tile-value { font-size: 1.75rem; }
+@media (max-width: 480px) { .tile-value { font-size: 1.45rem; } .tile-label { font-size: 0.64rem; letter-spacing: 0.1em; } }
+
+.calendar-card .legend { margin-top: 1rem; opacity: 0.75; }
+.calendar-card.week .legend { display: none; }
+.calendar-card.week .day { min-height: 64px; }
+@media (max-width: 600px) { .calendar-card.week .day { min-height: 54px; } }
+.cal-head { flex-wrap: wrap; }
+.cal-head h2 { min-width: 7rem; }
+
+#m-entry-toggle { margin-right: auto; }
+.entry { border-style: solid; border-color: var(--line); }
+.sheet-scroll { border-color: var(--line); }
+
+details.more { padding: 0.25rem 0.2rem; }
+details.more summary {
+  cursor: pointer; list-style: none; color: var(--muted); font-size: 0.82rem; font-weight: 600;
+  display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.4rem 0;
+}
+details.more summary::-webkit-details-marker { display: none; }
+details.more summary::before { content: "+"; font-family: var(--f-display); font-size: 1.15rem; color: var(--gold); line-height: 1; }
+details.more[open] summary::before { content: "–"; }
+details.more summary:hover { color: var(--text-2); }
+details.more > p { margin-top: 0.4rem; }
+
+.debt { border-color: transparent; }
+.debt-section { margin-bottom: 2.5rem; }
+.foot { margin-top: 3rem; }
+
+.item.task { border-left-color: rgba(233, 227, 212, 0.35); }
+.item.high { border-left-color: var(--bad); }
+.item.done { border-left-color: var(--line-2); }
+@media (max-width: 480px) {
+  .panel { padding: 1.1rem 1rem; }
+  .cal-head { flex-wrap: nowrap; gap: 0.35rem; }
+  .cal-head h2 { font-size: 1.15rem; min-width: 0; white-space: nowrap; }
+  .cal-head .btn-sm { padding: 0.35rem 0.6rem; font-size: 0.74rem; }
+  .filters { width: 100%; flex-wrap: nowrap; }
+  .filters input { flex: 1; width: auto; }
+}

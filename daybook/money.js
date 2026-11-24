@@ -166,11 +166,10 @@
 
     const tiles = [
       { label: 'Spent', value: fmt0(spent), delta, cls: deltaCls },
-      { label: 'Income', value: fmt0(income), delta: income ? `${list.filter(t => kindOf(t) === 'income').length} payment${list.filter(t => kindOf(t) === 'income').length === 1 ? '' : 's'}` : 'None added yet' },
       budgetTotal > 0
-        ? { label: 'Budget left', value: fmt0(Math.max(0, budgetTotal - budgetedSpent)), delta: budgetedSpent > budgetTotal ? `${fmt0(budgetedSpent - budgetTotal)} over budget` : `of ${fmt0(budgetTotal)} planned`, cls: budgetedSpent > budgetTotal ? 'bad' : '' }
+        ? { label: 'Budget left', value: fmt0(Math.max(0, budgetTotal - budgetedSpent)), delta: budgetedSpent > budgetTotal ? `${fmt0(budgetedSpent - budgetTotal)} over` : `of ${fmt0(budgetTotal)}`, cls: budgetedSpent > budgetTotal ? 'bad' : '' }
         : { label: 'Per day', value: fmt0(dayLimit ? spent / dayLimit : 0), delta: 'average so far' },
-      { label: 'No-spend days', value: String(noSpend), delta: noSpend ? `out of ${dayLimit} day${dayLimit === 1 ? '' : 's'}` : 'Try one this week', cls: noSpend ? 'good' : '' },
+      { label: 'No-spend days', value: String(noSpend), delta: noSpend ? `of ${dayLimit} day${dayLimit === 1 ? '' : 's'}` : 'Try one this week', cls: noSpend ? 'good' : '' },
     ];
     $('m-tiles').innerHTML = tiles.map(t => `<div class="tile"><div class="tile-label">${esc(t.label)}</div><div class="tile-value">${esc(t.value)}</div><div class="tile-delta ${t.cls || ''}">${esc(t.delta || '')}</div></div>`).join('');
   }
@@ -515,6 +514,12 @@
   }));
   $('m-s-currency').addEventListener('change', e => { state.currency = e.target.value; state.currencyChosen = true; persist(); });
   $('m-settings-btn').addEventListener('click', openSettings);
+  $('m-entry-toggle').addEventListener('click', e => {
+    const f = $('m-entry-form'); f.hidden = !f.hidden;
+    e.currentTarget.setAttribute('aria-expanded', String(!f.hidden));
+    e.currentTarget.textContent = f.hidden ? '+ Add with details' : 'Hide details';
+    if (!f.hidden) $('m-e-desc').focus();
+  });
   $('m-goal-edit').addEventListener('click', () => { openSettings(); setTimeout(() => $('m-s-goal-name').focus(), 30); });
   $('m-settings-close').addEventListener('click', closeSettings);
   $('m-settings').addEventListener('click', e => { if (e.target.id === 'm-settings') closeSettings(); });

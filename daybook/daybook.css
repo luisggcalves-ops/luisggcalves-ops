@@ -29,7 +29,7 @@
   --scrim:     rgba(42, 26, 15, 0.45);
   --accent-ring: rgba(59, 36, 22, 0.45);
 
-  --f-display: 'Instrument Serif', 'Iowan Old Style', Georgia, serif;
+  --f-display: 'Fraunces', 'Iowan Old Style', Georgia, serif;
   --f-ui:      'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --f-mono:    'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
 
@@ -600,3 +600,22 @@ details.more > p { margin-top: 0.4rem; }
   .filters { width: 100%; flex-wrap: nowrap; }
   .filters input { flex: 1; width: auto; }
 }
+
+/* ================= BOLD LETTERING =================
+   Fraunces for display (it has real bold weights), heavier Inter everywhere else. */
+body { font-weight: 500; }
+h2, .panel-title, .cal-head h2, .brand, .debt-name { font-weight: 700; letter-spacing: -0.01em; }
+.hero-figure { font-weight: 800; letter-spacing: -0.035em; }
+.hero-unit { font-weight: 600; letter-spacing: -0.01em; }
+.goal-name { font-weight: 700; letter-spacing: -0.015em; }
+.tile-value { font-weight: 800; letter-spacing: -0.02em; }
+.rtoast-title { font-weight: 700; }
+.brand-mark { font-weight: 700; }
+strong, .hero-line strong { font-weight: 800; }
+.btn, .tab, .seg span, .sort { font-weight: 700; }
+.eyebrow, .tile-label, h3, .field > span, .group-label, .cal-dow span, .stamp { font-weight: 800; }
+.item-title, .cat-name, .debt-meta span:first-child, .goal-meta span:last-child, .inline-link { font-weight: 700; }
+.item-meta, .debt-who, .cat-note, .tile-delta, .hint, .muted { font-weight: 500; }
+.debt-amt, .cat-amt, .sheet .cell.amt, .sheet tfoot .sum, .day .num, .item-time, .h-amt { font-weight: 600; }
+.sheet .cell, input, select, textarea { font-weight: 500; }
+

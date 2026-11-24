@@ -91,21 +91,42 @@
   const BELL = `<span class="bell" title="Reminder set">${BELL_SVG}</span>`;
   const REPEAT_LABEL = { daily: 'Daily', weekdays: 'Weekdays', weekly: 'Weekly', monthly: 'Monthly' };
 
+  const MODE_KEY = 'daybook.calendar';
+  let weekMode = (() => {
+    try { const v = localStorage.getItem(MODE_KEY); if (v) return v === 'week'; } catch { /* ignore */ }
+    return window.matchMedia('(max-width: 640px)').matches;
+  })();
+  function weekStart(ds) { const d = parseYmd(ds); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; }
   function renderCalendar() {
     const first = new Date(viewYear, viewMonth, 1);
-    $('p-month-label').textContent = first.toLocaleDateString([], { month: 'long', year: 'numeric' });
-    const offset = (first.getDay() + 6) % 7; // Monday first
-    const start = new Date(viewYear, viewMonth, 1 - offset);
+    let start, count;
+    if (weekMode) {
+      start = weekStart(selected); count = 7;
+      const end = new Date(start); end.setDate(end.getDate() + 6);
+      const sameMonth = start.getMonth() === end.getMonth();
+      $('p-month-label').textContent = sameMonth
+        ? `${start.getDate()}–${end.getDate()} ${end.toLocaleDateString([], { month: 'short' })}`
+        : `${start.toLocaleDateString([], { day: 'numeric', month: 'short' })} – ${end.toLocaleDateString([], { day: 'numeric', month: 'short' })}`;
+    } else {
+      $('p-month-label').textContent = first.toLocaleDateString([], { month: 'long', year: 'numeric' });
+      const offset = (first.getDay() + 6) % 7; // Monday first
+      start = new Date(viewYear, viewMonth, 1 - offset); count = 42;
+    }
+    document.querySelector('.calendar-card').classList.toggle('week', weekMode);
+    $('p-cal-mode').textContent = weekMode ? 'Month' : 'Week';
+    $('p-cal-mode').setAttribute('aria-pressed', String(!weekMode));
+    $('p-prev-month').setAttribute('aria-label', weekMode ? 'Previous week' : 'Previous month');
+    $('p-next-month').setAttribute('aria-label', weekMode ? 'Next week' : 'Next month');
     const t = todayStr();
     const grid = $('p-cal-grid');
     grid.innerHTML = '';
-    for (let i = 0; i < 42; i++) {
+    for (let i = 0; i < count; i++) {
       const d = new Date(start); d.setDate(start.getDate() + i);
       const ds = ymd(d);
       const list = itemsOn(ds);
       const cell = document.createElement('button');
       cell.type = 'button';
-      cell.className = 'day' + (d.getMonth() !== viewMonth ? ' other' : '') + (ds === t ? ' today' : '') + (ds === selected ? ' selected' : '');
+      cell.className = 'day' + (!weekMode && d.getMonth() !== viewMonth ? ' other' : '') + (ds === t ? ' today' : '') + (ds === selected ? ' selected' : '');
       cell.setAttribute('aria-label', `${fmtLong(ds)}, ${list.length} item${list.length === 1 ? '' : 's'}`);
       const chips = list.slice(0, 3).map(it =>
         `<span class="chip ${it.type}${it.priority === 'high' && it.type === 'task' ? ' high' : ''}${isDone(it, ds) ? ' done' : ''}">${it.time ? fmtTime(it.time) + ' ' : ''}${esc(it.title)}</span>`).join('');
@@ -530,8 +551,20 @@
   $('p-new-btn').addEventListener('click', () => openEditor(null));
   $('p-add-day-btn').addEventListener('click', () => openEditor(null, selected));
   $('p-today-btn').addEventListener('click', () => selectDay(todayStr()));
-  $('p-prev-month').addEventListener('click', () => { viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar(); });
-  $('p-next-month').addEventListener('click', () => { viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar(); });
+  $('p-prev-month').addEventListener('click', () => {
+    if (weekMode) { selectDay(addDays(selected, -7)); return; }
+    viewMonth--; if (viewMonth < 0) { viewMonth = 11; viewYear--; } renderCalendar();
+  });
+  $('p-next-month').addEventListener('click', () => {
+    if (weekMode) { selectDay(addDays(selected, 7)); return; }
+    viewMonth++; if (viewMonth > 11) { viewMonth = 0; viewYear++; } renderCalendar();
+  });
+  $('p-cal-mode').addEventListener('click', () => {
+    weekMode = !weekMode;
+    try { localStorage.setItem(MODE_KEY, weekMode ? 'week' : 'month'); } catch { /* ignore */ }
+    const d = parseYmd(selected); viewYear = d.getFullYear(); viewMonth = d.getMonth();
+    renderCalendar();
+  });
   $('p-clear-examples-btn').addEventListener('click', () => { items = items.filter(i => !i.example); persist(); render(); });
 
   // re-render at midnight so "Today" stays correct
